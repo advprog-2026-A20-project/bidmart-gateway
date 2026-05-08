@@ -1,0 +1,40 @@
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+*.keystore
+secrets/
+
+# Build outputs
+build/
+dist/
+out/
+target/
+coverage/
+*.log
+
+# Dependencies
+node_modules/
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Java
+.gradle/
+*.class
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Local docker artifacts
+*.pid
