@@ -1,83 +1,52 @@
-# bidmart-gateway
+# BidMart Gateway
 
-`bidmart-gateway` adalah repository untuk **gateway backend** sekaligus **legacy monolith strangler facade** pada migrasi BidMart dari monolith ke microservice multi-repo.
+`bidmart-gateway` adalah API gateway/BFF untuk frontend BidMart.
 
-## Tujuan Repository
+Status saat ini: gateway adalah thin routing/proxy layer untuk auth, wallet, auction command, dan delegasi read ke query services.
 
-- Menjadi pintu masuk backend selama fase migrasi.
-- Menampung bagian legacy backend yang belum dipisahkan.
-- Meneruskan request ke service baru yang sudah dipisahkan secara bertahap.
+## Routing Utama
 
-## Status Inisialisasi
+- `POST /api/auth/register|login`, `GET /api/auth/me` -> `bidmart-auth-service`
+- `GET/POST /api/wallet/*` -> `bidmart-wallet-service`
+- `POST /api/auctions`, `POST /api/auctions/{id}/activate|bids|close` -> `bidmart-bidding-command-service`
+- `GET /api/auctions*` -> `bidmart-auction-query-service`
+- `GET /api/listings*` -> `bidmart-listing-query-service`
+- `GET /api/users/{userId}/public-profile` -> gateway local endpoint
 
-> Catatan: Analisis/penyalinan langsung dari repo sumber `feat/auction-query-rollout` **belum dapat diverifikasi di environment ini** karena akses network ke GitHub tidak tersedia saat eksekusi.
+## Health
 
-## Struktur Awal
+- `GET /actuator/health`
 
-- `config/routing-plan.md` — rencana routing strangler sementara.
-- `docs/service-boundary.md` — boundary dan tanggung jawab service gateway.
-- `src/main/java` — placeholder source backend gateway/legacy.
-- `src/main/resources` — placeholder konfigurasi aplikasi.
+## Environment
 
-## Cara Menjalankan Lokal (sementara)
+Lihat `.env.example`.
 
-Karena source code backend legacy belum tersalin di environment ini, langkah run final akan mengikuti stack asli dari repo sumber (diasumsikan Java/Spring berdasarkan struktur migrasi yang disiapkan).
+Variabel penting:
 
-Contoh (asumsi Spring Boot):
+- `AUTH_SERVICE_BASE_URL`
+- `WALLET_SERVICE_BASE_URL`
+- `BIDDING_COMMAND_SERVICE_BASE_URL`
+- `AUCTION_QUERY_SERVICE_BASE_URL`
+- `LISTING_QUERY_SERVICE_BASE_URL`
+
+## Local Run
 
 ```bash
+cp .env.example .env
 ./gradlew bootRun
 ```
 
-atau
+Default port: `8080`.
 
-```bash
-mvn spring-boot:run
-```
-
-## Instruksi Test (sementara)
+## Test
 
 ```bash
 ./gradlew test
 ```
 
-atau
+## Docker
 
 ```bash
-mvn test
+docker build -t bidmart-gateway .
+docker run --env-file .env -p 8080:8080 bidmart-gateway
 ```
-
-## Dependency ke Service Lain
-
-Gateway akan bergantung pada endpoint service berikut:
-
-- `bidmart-auth-service`
-- `bidmart-listing-query-service`
-- `bidmart-auction-query-service`
-- `bidmart-bidding-command-service`
-- `bidmart-wallet-service`
-- `bidmart-notification-service`
-
-## Routing Table Sementara
-
-| Path | Target Service | Fallback |
-|---|---|---|
-| `/api/auth/**` | `bidmart-auth-service` | legacy auth sementara |
-| `/api/listings/**` | `bidmart-listing-query-service` | legacy listings sementara |
-| `/api/auctions/**` | `bidmart-auction-query-service` | legacy auctions sementara |
-| `/api/bids/**` | `bidmart-bidding-command-service` | legacy bids sementara |
-| `/api/wallets/**` | `bidmart-wallet-service` | legacy wallets sementara |
-| `/api/notifications/**` | `bidmart-notification-service` | legacy notifications sementara |
-
-Detail ada di `config/routing-plan.md`.
-
-## Bagian Legacy yang Masih Ada (sementara)
-
-Pada tahap ini gateway diposisikan tetap menampung modul legacy yang belum dipisahkan. Daftar modul konkret perlu dikonfirmasi setelah sinkronisasi dari branch sumber berhasil.
-
-## Rencana Pemindahan Bertahap
-
-1. Sinkronisasi backend legacy dari branch sumber.
-2. Pisahkan endpoint domain per bounded context.
-3. Ubah endpoint gateway menjadi forward/proxy ke service domain.
-4. Hapus kode legacy setelah setiap service stabil di production-like environment.

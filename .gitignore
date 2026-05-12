@@ -1,40 +1,47 @@
-# Environment & secrets
-.env
-.env.*
-!.env.example
-*.pem
-*.key
-*.crt
-*.p12
-*.jks
-*.keystore
-secrets/
-
-# Build outputs
+HELP.md
+.gradle
 build/
-dist/
-out/
-target/
-coverage/
-*.log
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
 
-# Dependencies
-node_modules/
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
 
-# IDE / OS
-.idea/
-.vscode/
+### IntelliJ IDEA ###
+.idea
+*.iws
 *.iml
-.DS_Store
-Thumbs.db
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
 
-# Java
-.gradle/
-*.class
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
 
-# Python cache
-__pycache__/
-*.pyc
+### VS Code ###
+.vscode/
 
-# Local docker artifacts
-*.pid
+# Env files (secrets)
+.env
+backend/.env
+.env.*
+
+# Internal migration notes (not for shared branch)
+docs/microservices-migration.md
+deployment/PRODUCTION-ROLLOUT.md
+auction-query-service/deployment/STAGING-CHECKLIST.md

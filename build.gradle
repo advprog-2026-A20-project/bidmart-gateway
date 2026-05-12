@@ -1,0 +1,121 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.11'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'jacoco'
+}
+
+group = 'id.ac.ui.cs.advprog'
+version = '0.0.1-SNAPSHOT'
+description = 'backend'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
+
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    developmentOnly 'com.h2database:h2'
+    runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly 'com.h2database:h2'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'com.h2database:h2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+
+tasks.named('test') {
+    useJUnitPlatform()
+    finalizedBy tasks.named('jacocoTestReport')
+}
+
+jacoco {
+    toolVersion = '0.8.13'
+}
+
+def listingCoverageTargets = [
+    'id/ac/ui/cs/advprog/backend/controller/ListingController.class',
+    'id/ac/ui/cs/advprog/backend/controller/PublicUserController.class',
+    'id/ac/ui/cs/advprog/backend/model/ListingCategory.class',
+    'id/ac/ui/cs/advprog/backend/service/AuctionService.class',
+    'id/ac/ui/cs/advprog/backend/service/InMemoryListingPriceUpdateQueue.class',
+    'id/ac/ui/cs/advprog/backend/service/ListingService.class'
+]
+
+tasks.named('jacocoTestReport') {
+    dependsOn tasks.named('test')
+
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+
+    classDirectories.setFrom(files(classDirectories.files.collect { directory ->
+        fileTree(dir: directory, include: listingCoverageTargets)
+    }))
+}
+
+tasks.named('jacocoTestCoverageVerification') {
+    dependsOn tasks.named('test')
+
+    violationRules {
+        rule {
+            element = 'CLASS'
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 1.0
+            }
+        }
+    }
+
+    classDirectories.setFrom(files(classDirectories.files.collect { directory ->
+        fileTree(dir: directory, include: listingCoverageTargets)
+    }))
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('jacocoTestCoverageVerification')
+}
+
+tasks.register('bootRunLocal', org.springframework.boot.gradle.tasks.run.BootRun) {
+    group = 'application'
+    description = 'Run the application with the local H2 development profile.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'id.ac.ui.cs.advprog.backend.BackendApplication'
+
+    systemProperty 'spring.profiles.active', 'local'
+    systemProperty 'spring.datasource.url', 'jdbc:h2:mem:bidmart;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE'
+    systemProperty 'spring.datasource.driver-class-name', 'org.h2.Driver'
+    systemProperty 'spring.datasource.username', 'sa'
+    systemProperty 'spring.datasource.password', ''
+    systemProperty 'JWT_SECRET', 'local-dev-secret-please-change-32-chars'
+}

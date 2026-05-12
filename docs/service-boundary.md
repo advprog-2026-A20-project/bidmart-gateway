@@ -1,19 +1,27 @@
 # Service Boundary - bidmart-gateway
 
-`bidmart-gateway` berperan sebagai:
+Gateway berfungsi sebagai entrypoint API dan router antar microservice.
 
-1. pintu masuk backend utama selama migrasi,
-2. host untuk modul legacy yang belum dipisahkan,
-3. strangler facade untuk meneruskan request ke service baru.
+## Tanggung Jawab Gateway
 
-## Batas Tanggung Jawab Gateway
+- terminasi request client
+- routing/proxy ke service domain
+- delegasi read endpoint ke query services
+- menjaga contract endpoint publik yang dipakai frontend
 
-- Terminasi request dari client internal/external.
-- Routing request ke service domain yang sudah dipisah.
-- Menjaga kompatibilitas endpoint legacy yang masih dipakai.
-- Menjadi titik transisi sampai semua domain keluar dari monolith.
+## Bukan Tanggung Jawab Gateway
 
-## Yang Tidak Menjadi Tanggung Jawab Gateway
+- source of truth auth
+- source of truth wallet
+- source of truth auction/bidding command
 
-- UI/frontend (dipindah ke repo `bidmart-frontend`).
-- Implementasi domain logic final milik service terpisah.
+## Mapping Domain Ownership
+
+- auth ownership -> `bidmart-auth-service`
+- wallet ownership -> `bidmart-wallet-service`
+- auction/bid command ownership -> `bidmart-bidding-command-service`
+- listing/auction query ownership -> `bidmart-listing-query-service`, `bidmart-auction-query-service`
+
+## Status Cleanup
+
+Runtime file/bean legacy monolith untuk auth, wallet, auction command, bidding command sudah dihapus dari gateway.
