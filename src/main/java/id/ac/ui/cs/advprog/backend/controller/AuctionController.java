@@ -1,5 +1,6 @@
 package id.ac.ui.cs.advprog.backend.controller;
 
+import id.ac.ui.cs.advprog.backend.config.BiddingCommandServiceProperties;
 import id.ac.ui.cs.advprog.backend.dto.AuctionDetailResponse;
 import id.ac.ui.cs.advprog.backend.dto.AuctionSummaryResponse;
 import id.ac.ui.cs.advprog.backend.dto.BidResponse;
@@ -8,7 +9,6 @@ import id.ac.ui.cs.advprog.backend.service.HttpProxyService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
@@ -32,11 +32,11 @@ public class AuctionController {
     public AuctionController(
         AuctionReadGateway auctionReadGateway,
         HttpProxyService proxyService,
-        @Value("${BIDDING_COMMAND_SERVICE_BASE_URL:http://localhost:8084}") String biddingCommandServiceBaseUrl
+        BiddingCommandServiceProperties biddingCommandServiceProperties
     ) {
         this.auctionReadGateway = auctionReadGateway;
         this.proxyService = proxyService;
-        this.biddingCommandServiceBaseUrl = biddingCommandServiceBaseUrl;
+        this.biddingCommandServiceBaseUrl = biddingCommandServiceProperties.getBaseUrl();
     }
 
     @PostMapping

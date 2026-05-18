@@ -10,6 +10,7 @@ import org.springframework.web.client.RestTemplate;
 @Configuration
 @EnableConfigurationProperties({
     AuctionQueryServiceProperties.class,
+    BiddingCommandServiceProperties.class,
     ListingQueryServiceProperties.class
 })
 public class ExternalServiceClientConfig {
@@ -33,10 +34,10 @@ public class ExternalServiceClientConfig {
     }
 
     @Bean
-    public RestTemplate proxyRestTemplate() {
+    public RestTemplate proxyRestTemplate(BiddingCommandServiceProperties properties) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(1000);
-        requestFactory.setReadTimeout(3000);
+        requestFactory.setConnectTimeout(properties.getConnectTimeoutMs());
+        requestFactory.setReadTimeout(properties.getReadTimeoutMs());
         return new RestTemplate(requestFactory);
     }
 }
