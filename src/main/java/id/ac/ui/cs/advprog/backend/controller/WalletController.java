@@ -4,7 +4,6 @@ import id.ac.ui.cs.advprog.backend.dto.TopUpRequest;
 import id.ac.ui.cs.advprog.backend.dto.TransactionResponse;
 import id.ac.ui.cs.advprog.backend.dto.WalletResponse;
 import id.ac.ui.cs.advprog.backend.security.AuthenticatedUser;
-import id.ac.ui.cs.advprog.backend.service.WalletService;
 import id.ac.ui.cs.advprog.backend.service.WalletServiceClient;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -20,20 +19,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/wallet")
 public class WalletController {
 
-    private final WalletService walletService;
     private final WalletServiceClient walletServiceClient;
 
-    public WalletController(WalletService walletService, WalletServiceClient walletServiceClient) {
-        this.walletService = walletService;
+    public WalletController(WalletServiceClient walletServiceClient) {
         this.walletServiceClient = walletServiceClient;
     }
 
     @GetMapping("/balance")
     public WalletResponse getBalance(@AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-        if (walletServiceClient.isEnabled()) {
-            return walletServiceClient.getBalance();
-        }
-        return walletService.getWallet(authenticatedUser.id());
+        return walletServiceClient.getBalance();
     }
 
     @PostMapping("/topup")
@@ -42,19 +36,13 @@ public class WalletController {
         @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
         @RequestBody TopUpRequest request
     ) {
-        if (walletServiceClient.isEnabled()) {
-            return walletServiceClient.topUp(request);
-        }
-        return walletService.topUp(authenticatedUser.id(), request);
+        return walletServiceClient.topUp(request);
     }
 
     @GetMapping("/transactions")
     public List<TransactionResponse> getTransactionHistory(
         @AuthenticationPrincipal AuthenticatedUser authenticatedUser
     ) {
-        if (walletServiceClient.isEnabled()) {
-            return walletServiceClient.getTransactions();
-        }
-        return walletService.getTransactionHistory(authenticatedUser.id());
+        return walletServiceClient.getTransactions();
     }
 }

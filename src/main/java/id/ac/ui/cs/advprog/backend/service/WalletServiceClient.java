@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
@@ -41,6 +42,7 @@ public class WalletServiceClient {
 
     public WalletResponse getBalance() {
         try {
+            ensureConfigured();
             return restTemplate.exchange(
                 baseUrl + "/api/wallet/balance",
                 HttpMethod.GET,
@@ -54,6 +56,7 @@ public class WalletServiceClient {
 
     public WalletResponse topUp(TopUpRequest request) {
         try {
+            ensureConfigured();
             return restTemplate.exchange(
                 baseUrl + "/api/wallet/topup",
                 HttpMethod.POST,
@@ -67,6 +70,7 @@ public class WalletServiceClient {
 
     public List<TransactionResponse> getTransactions() {
         try {
+            ensureConfigured();
             TransactionResponse[] response = restTemplate.exchange(
                 baseUrl + "/api/wallet/transactions",
                 HttpMethod.GET,
@@ -89,6 +93,12 @@ public class WalletServiceClient {
             }
         }
         return headers;
+    }
+
+    private void ensureConfigured() {
+        if (!isEnabled()) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Wallet service base URL is not configured");
+        }
     }
 
     private HttpServletRequest currentRequest() {

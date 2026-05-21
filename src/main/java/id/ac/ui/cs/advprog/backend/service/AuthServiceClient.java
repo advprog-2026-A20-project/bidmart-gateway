@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
@@ -40,6 +41,7 @@ public class AuthServiceClient {
 
     public RegisterResponse register(RegisterRequest request) {
         try {
+            ensureConfigured();
             return restTemplate.postForObject(baseUrl + "/api/auth/register", request, RegisterResponse.class);
         } catch (HttpStatusCodeException exception) {
             throw toResponseStatusException(exception);
@@ -48,6 +50,7 @@ public class AuthServiceClient {
 
     public LoginResponse login(LoginRequest request) {
         try {
+            ensureConfigured();
             return restTemplate.postForObject(baseUrl + "/api/auth/login", request, LoginResponse.class);
         } catch (HttpStatusCodeException exception) {
             throw toResponseStatusException(exception);
@@ -56,6 +59,7 @@ public class AuthServiceClient {
 
     public UserSummary me() {
         try {
+            ensureConfigured();
             return restTemplate.exchange(
                 baseUrl + "/api/auth/me",
                 org.springframework.http.HttpMethod.GET,
@@ -77,6 +81,12 @@ public class AuthServiceClient {
             }
         }
         return headers;
+    }
+
+    private void ensureConfigured() {
+        if (!isEnabled()) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Auth service base URL is not configured");
+        }
     }
 
     private HttpServletRequest currentRequest() {

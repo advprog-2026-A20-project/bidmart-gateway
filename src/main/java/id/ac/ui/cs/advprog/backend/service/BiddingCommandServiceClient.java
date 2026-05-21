@@ -2,6 +2,7 @@ package id.ac.ui.cs.advprog.backend.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import id.ac.ui.cs.advprog.backend.dto.AuctionCreateRequest;
 import id.ac.ui.cs.advprog.backend.dto.AuctionDetailResponse;
 import id.ac.ui.cs.advprog.backend.dto.BidPlaceRequest;
 import jakarta.servlet.http.HttpServletRequest;
@@ -10,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
@@ -37,12 +39,55 @@ public class BiddingCommandServiceClient {
         return enabled && baseUrl != null && !baseUrl.isBlank();
     }
 
+    public AuctionDetailResponse createAuction(AuctionCreateRequest request) {
+        try {
+            ensureConfigured();
+            return restTemplate.exchange(
+                baseUrl + "/api/auctions",
+                HttpMethod.POST,
+                new HttpEntity<>(request, headersWithAuthorization()),
+                AuctionDetailResponse.class
+            ).getBody();
+        } catch (HttpStatusCodeException exception) {
+            throw toResponseStatusException(exception);
+        }
+    }
+
+    public AuctionDetailResponse activateAuction(UUID auctionId) {
+        try {
+            ensureConfigured();
+            return restTemplate.exchange(
+                baseUrl + "/api/auctions/" + auctionId + "/activate",
+                HttpMethod.POST,
+                new HttpEntity<>(headersWithAuthorization()),
+                AuctionDetailResponse.class
+            ).getBody();
+        } catch (HttpStatusCodeException exception) {
+            throw toResponseStatusException(exception);
+        }
+    }
+
     public AuctionDetailResponse placeBid(UUID auctionId, BidPlaceRequest request) {
         try {
+            ensureConfigured();
             return restTemplate.exchange(
                 baseUrl + "/api/auctions/" + auctionId + "/bids",
                 HttpMethod.POST,
                 new HttpEntity<>(request, headersWithAuthorization()),
+                AuctionDetailResponse.class
+            ).getBody();
+        } catch (HttpStatusCodeException exception) {
+            throw toResponseStatusException(exception);
+        }
+    }
+
+    public AuctionDetailResponse closeAuction(UUID auctionId) {
+        try {
+            ensureConfigured();
+            return restTemplate.exchange(
+                baseUrl + "/api/auctions/" + auctionId + "/close",
+                HttpMethod.POST,
+                new HttpEntity<>(headersWithAuthorization()),
                 AuctionDetailResponse.class
             ).getBody();
         } catch (HttpStatusCodeException exception) {
@@ -60,6 +105,15 @@ public class BiddingCommandServiceClient {
             }
         }
         return headers;
+    }
+
+    private void ensureConfigured() {
+        if (!isEnabled()) {
+            throw new ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Bidding command service base URL is not configured"
+            );
+        }
     }
 
     private HttpServletRequest currentRequest() {

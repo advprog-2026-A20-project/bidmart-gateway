@@ -1,7 +1,7 @@
 package id.ac.ui.cs.advprog.backend.controller;
 
 import id.ac.ui.cs.advprog.backend.dto.PublicSellerProfileResponse;
-import id.ac.ui.cs.advprog.backend.service.ListingService;
+import id.ac.ui.cs.advprog.backend.service.ListingCommandServiceClient;
 import java.util.UUID;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,15 +13,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/users")
 public class PublicUserController {
 
-    private final ListingService listingService;
+    private final ListingCommandServiceClient listingCommandServiceClient;
 
-    public PublicUserController(ListingService listingService) {
-        this.listingService = listingService;
+    public PublicUserController(ListingCommandServiceClient listingCommandServiceClient) {
+        this.listingCommandServiceClient = listingCommandServiceClient;
     }
 
     @GetMapping("/{userId}/public-profile")
     @PreAuthorize("permitAll()")
     public PublicSellerProfileResponse publicProfile(@PathVariable UUID userId) {
-        return listingService.getPublicSellerProfile(userId);
+        return listingCommandServiceClient.publicProfile(userId);
     }
 }

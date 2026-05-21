@@ -8,14 +8,13 @@ import id.ac.ui.cs.advprog.backend.dto.ListingResponse;
 import id.ac.ui.cs.advprog.backend.dto.ListingUpdateRequest;
 import id.ac.ui.cs.advprog.backend.model.ListingCategory;
 import id.ac.ui.cs.advprog.backend.security.AuthenticatedUser;
+import id.ac.ui.cs.advprog.backend.service.ListingCommandServiceClient;
 import id.ac.ui.cs.advprog.backend.service.ListingReadGateway;
-import id.ac.ui.cs.advprog.backend.service.ListingService;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -33,11 +32,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/listings")
 public class ListingController {
 
-    private final ListingService listingService;
+    private final ListingCommandServiceClient listingCommandServiceClient;
     private final ListingReadGateway listingReadGateway;
 
-    public ListingController(ListingService listingService, ListingReadGateway listingReadGateway) {
-        this.listingService = listingService;
+    public ListingController(
+        ListingCommandServiceClient listingCommandServiceClient,
+        ListingReadGateway listingReadGateway
+    ) {
+        this.listingCommandServiceClient = listingCommandServiceClient;
         this.listingReadGateway = listingReadGateway;
     }
 
@@ -48,13 +50,12 @@ public class ListingController {
         @Valid @RequestBody ListingCreateRequest request,
         @AuthenticationPrincipal AuthenticatedUser authenticatedUser
     ) {
-        return listingService.createListing(request, authenticatedUser.id());
+        return listingCommandServiceClient.create(request);
     }
 
     @GetMapping
     @PreAuthorize("permitAll()")
     public List<ListingResponse> list(
-        Pageable pageable,
         @RequestParam(required = false) ListingCategory category,
         @RequestParam(required = false) String keyword,
         @RequestParam(required = false) BigDecimal minPrice,
@@ -63,7 +64,6 @@ public class ListingController {
         @RequestParam(required = false) Instant endingBefore
     ) {
         return listingReadGateway.list(
-            pageable,
             category,
             keyword,
             minPrice,
@@ -94,7 +94,7 @@ public class ListingController {
     @GetMapping("/{listingId}/validation")
     @PreAuthorize("permitAll()")
     public ListingBidValidationResponse validateForBid(@PathVariable UUID listingId) {
-        return listingService.validateListingForBid(listingId);
+        return listingCommandServiceClient.validateForBid(listingId);
     }
 
     @PutMapping("/{listingId}")
@@ -104,7 +104,7 @@ public class ListingController {
         @Valid @RequestBody ListingUpdateRequest request,
         @AuthenticationPrincipal AuthenticatedUser authenticatedUser
     ) {
-        return listingService.updateListing(listingId, request, authenticatedUser.id());
+        return listingCommandServiceClient.update(listingId, request);
     }
 
     @DeleteMapping("/{listingId}")
@@ -113,6 +113,6 @@ public class ListingController {
         @PathVariable UUID listingId,
         @AuthenticationPrincipal AuthenticatedUser authenticatedUser
     ) {
-        return listingService.cancelListing(listingId, authenticatedUser.id());
+        return listingCommandServiceClient.cancel(listingId);
     }
 }

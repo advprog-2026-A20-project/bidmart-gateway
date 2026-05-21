@@ -8,12 +8,10 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.data.domain.Pageable;
 
 public interface ListingReadGateway {
 
     List<ListingResponse> list(
-        Pageable pageable,
         ListingCategory category,
         String keyword,
         BigDecimal minPrice,

@@ -7,7 +7,6 @@ import id.ac.ui.cs.advprog.backend.dto.BidPlaceRequest;
 import id.ac.ui.cs.advprog.backend.dto.BidResponse;
 import id.ac.ui.cs.advprog.backend.security.AuthenticatedUser;
 import id.ac.ui.cs.advprog.backend.service.AuctionReadGateway;
-import id.ac.ui.cs.advprog.backend.service.AuctionService;
 import id.ac.ui.cs.advprog.backend.service.BiddingCommandServiceClient;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -27,16 +26,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/auctions")
 public class AuctionController {
 
-    private final AuctionService auctionService;
     private final AuctionReadGateway auctionReadGateway;
     private final BiddingCommandServiceClient biddingCommandServiceClient;
 
     public AuctionController(
-        AuctionService auctionService,
         AuctionReadGateway auctionReadGateway,
         BiddingCommandServiceClient biddingCommandServiceClient
     ) {
-        this.auctionService = auctionService;
         this.auctionReadGateway = auctionReadGateway;
         this.biddingCommandServiceClient = biddingCommandServiceClient;
     }
@@ -48,7 +44,7 @@ public class AuctionController {
         @Valid @RequestBody AuctionCreateRequest request,
         @AuthenticationPrincipal AuthenticatedUser authenticatedUser
     ) {
-        return auctionService.createAuction(request, authenticatedUser.id());
+        return biddingCommandServiceClient.createAuction(request);
     }
 
     @GetMapping
@@ -75,7 +71,7 @@ public class AuctionController {
         @PathVariable UUID auctionId,
         @AuthenticationPrincipal AuthenticatedUser authenticatedUser
     ) {
-        return auctionService.activateAuction(auctionId, authenticatedUser.id());
+        return biddingCommandServiceClient.activateAuction(auctionId);
     }
 
     @PostMapping("/{auctionId}/bids")
@@ -86,10 +82,7 @@ public class AuctionController {
         @Valid @RequestBody BidPlaceRequest request,
         @AuthenticationPrincipal AuthenticatedUser authenticatedUser
     ) {
-        if (biddingCommandServiceClient.isEnabled()) {
-            return biddingCommandServiceClient.placeBid(auctionId, request);
-        }
-        return auctionService.placeBid(auctionId, request, authenticatedUser.id());
+        return biddingCommandServiceClient.placeBid(auctionId, request);
     }
 
     @PostMapping("/{auctionId}/close")
@@ -98,6 +91,6 @@ public class AuctionController {
         @PathVariable UUID auctionId,
         @AuthenticationPrincipal AuthenticatedUser authenticatedUser
     ) {
-        return auctionService.closeAuction(auctionId, authenticatedUser.id());
+        return biddingCommandServiceClient.closeAuction(auctionId);
     }
 }
