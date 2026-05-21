@@ -142,7 +142,7 @@ public class WalletServiceClient {
             response.transactionId(),
             response.type(),
             response.amount(),
-            null,
+            response.availableBalanceAfter(),
             response.reference(),
             response.timestamp()
         );
@@ -161,6 +161,8 @@ public class WalletServiceClient {
         String type,
         BigDecimal amount,
         String reference,
+        BigDecimal availableBalanceAfter,
+        BigDecimal heldBalanceAfter,
         Instant timestamp
     ) {
     }
