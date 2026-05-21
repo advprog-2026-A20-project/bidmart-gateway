@@ -127,10 +127,9 @@ public class WalletServiceClient {
         if (response == null) {
             return null;
         }
-        BigDecimal balance = response.availableBalance().add(response.heldBalance());
         return new WalletResponse(
             response.userId(),
-            balance,
+            response.availableBalance(),
             response.availableBalance(),
             response.heldBalance(),
             response.userId()
