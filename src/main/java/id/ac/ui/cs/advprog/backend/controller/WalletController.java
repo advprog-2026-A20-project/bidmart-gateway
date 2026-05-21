@@ -27,7 +27,7 @@ public class WalletController {
 
     @GetMapping("/balance")
     public WalletResponse getBalance(@AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-        return walletServiceClient.getBalance();
+        return walletServiceClient.getBalance(authenticatedUser.id());
     }
 
     @PostMapping("/topup")
@@ -36,13 +36,13 @@ public class WalletController {
         @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
         @RequestBody TopUpRequest request
     ) {
-        return walletServiceClient.topUp(request);
+        return walletServiceClient.topUp(authenticatedUser.id(), request);
     }
 
     @GetMapping("/transactions")
     public List<TransactionResponse> getTransactionHistory(
         @AuthenticationPrincipal AuthenticatedUser authenticatedUser
     ) {
-        return walletServiceClient.getTransactions();
+        return walletServiceClient.getTransactions(authenticatedUser.id());
     }
 }

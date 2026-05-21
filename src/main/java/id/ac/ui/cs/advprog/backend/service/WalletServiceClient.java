@@ -5,19 +5,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import id.ac.ui.cs.advprog.backend.dto.TopUpRequest;
 import id.ac.ui.cs.advprog.backend.dto.TransactionResponse;
 import id.ac.ui.cs.advprog.backend.dto.WalletResponse;
-import jakarta.servlet.http.HttpServletRequest;
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.server.ResponseStatusException;
 
 @Component
@@ -40,72 +39,57 @@ public class WalletServiceClient {
         return enabled && baseUrl != null && !baseUrl.isBlank();
     }
 
-    public WalletResponse getBalance() {
+    public WalletResponse getBalance(UUID userId) {
         try {
             ensureConfigured();
-            return restTemplate.exchange(
-                baseUrl + "/api/wallet/balance",
+            WalletBalanceServiceResponse response = restTemplate.exchange(
+                baseUrl + "/wallets/" + userId + "/balance",
                 HttpMethod.GET,
-                new HttpEntity<>(headersWithAuthorization()),
-                WalletResponse.class
+                HttpEntity.EMPTY,
+                WalletBalanceServiceResponse.class
             ).getBody();
+            return toWalletResponse(response);
         } catch (HttpStatusCodeException exception) {
             throw toResponseStatusException(exception);
         }
     }
 
-    public WalletResponse topUp(TopUpRequest request) {
+    public WalletResponse topUp(UUID userId, TopUpRequest request) {
         try {
             ensureConfigured();
-            return restTemplate.exchange(
-                baseUrl + "/api/wallet/topup",
+            WalletBalanceServiceResponse response = restTemplate.exchange(
+                baseUrl + "/wallets/" + userId + "/top-up",
                 HttpMethod.POST,
-                new HttpEntity<>(request, headersWithAuthorization()),
-                WalletResponse.class
+                new HttpEntity<>(request),
+                WalletBalanceServiceResponse.class
             ).getBody();
+            return toWalletResponse(response);
         } catch (HttpStatusCodeException exception) {
             throw toResponseStatusException(exception);
         }
     }
 
-    public List<TransactionResponse> getTransactions() {
+    public List<TransactionResponse> getTransactions(UUID userId) {
         try {
             ensureConfigured();
-            TransactionResponse[] response = restTemplate.exchange(
-                baseUrl + "/api/wallet/transactions",
+            WalletTransactionServiceResponse[] response = restTemplate.exchange(
+                baseUrl + "/wallets/" + userId + "/transactions",
                 HttpMethod.GET,
-                new HttpEntity<>(headersWithAuthorization()),
-                TransactionResponse[].class
+                HttpEntity.EMPTY,
+                WalletTransactionServiceResponse[].class
             ).getBody();
-            return response == null ? List.of() : Arrays.asList(response);
+            return response == null ? List.of() : Arrays.stream(response)
+                .map(this::toTransactionResponse)
+                .toList();
         } catch (HttpStatusCodeException exception) {
             throw toResponseStatusException(exception);
         }
-    }
-
-    private HttpHeaders headersWithAuthorization() {
-        HttpHeaders headers = new HttpHeaders();
-        HttpServletRequest request = currentRequest();
-        if (request != null) {
-            String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
-            if (authorization != null && !authorization.isBlank()) {
-                headers.set(HttpHeaders.AUTHORIZATION, authorization);
-            }
-        }
-        return headers;
     }
 
     private void ensureConfigured() {
         if (!isEnabled()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Wallet service base URL is not configured");
         }
-    }
-
-    private HttpServletRequest currentRequest() {
-        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs) {
-            return attrs.getRequest();
-        }
-        return null;
     }
 
     private String trimTrailingSlash(String value) {
@@ -137,5 +121,47 @@ public class WalletServiceClient {
             }
         }
         return exception.getStatusText();
+    }
+
+    private WalletResponse toWalletResponse(WalletBalanceServiceResponse response) {
+        if (response == null) {
+            return null;
+        }
+        BigDecimal balance = response.availableBalance().add(response.heldBalance());
+        return new WalletResponse(
+            response.userId(),
+            balance,
+            response.availableBalance(),
+            response.heldBalance(),
+            response.userId()
+        );
+    }
+
+    private TransactionResponse toTransactionResponse(WalletTransactionServiceResponse response) {
+        return new TransactionResponse(
+            response.transactionId(),
+            response.type(),
+            response.amount(),
+            null,
+            response.reference(),
+            response.timestamp()
+        );
+    }
+
+    private record WalletBalanceServiceResponse(
+        UUID userId,
+        BigDecimal availableBalance,
+        BigDecimal heldBalance
+    ) {
+    }
+
+    private record WalletTransactionServiceResponse(
+        UUID transactionId,
+        UUID userId,
+        String type,
+        BigDecimal amount,
+        String reference,
+        Instant timestamp
+    ) {
     }
 }
