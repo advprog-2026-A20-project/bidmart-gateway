@@ -15,6 +15,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -33,7 +35,7 @@ public class ProxyingAuctionReadGateway implements AuctionReadGateway {
 
     @Override
     public List<AuctionSummaryResponse> listAuctions() {
-        return getList("/api/auctions", AuctionSummaryResponse[].class);
+        return getList(currentRequestPath("/api/auctions"), AuctionSummaryResponse[].class);
     }
 
     @Override
@@ -80,5 +82,13 @@ public class ProxyingAuctionReadGateway implements AuctionReadGateway {
         }
         String normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         return URI.create(normalizedBaseUrl + path);
+    }
+
+    private String currentRequestPath(String defaultPath) {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs) {
+            String query = attrs.getRequest().getQueryString();
+            return query == null || query.isBlank() ? defaultPath : defaultPath + "?" + query;
+        }
+        return defaultPath;
     }
 }
