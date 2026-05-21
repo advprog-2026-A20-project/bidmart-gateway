@@ -6,6 +6,7 @@ import id.ac.ui.cs.advprog.backend.dto.RegisterRequest;
 import id.ac.ui.cs.advprog.backend.dto.RegisterResponse;
 import id.ac.ui.cs.advprog.backend.dto.UserSummary;
 import id.ac.ui.cs.advprog.backend.security.AuthenticatedUser;
+import id.ac.ui.cs.advprog.backend.service.AuthServiceClient;
 import id.ac.ui.cs.advprog.backend.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -22,27 +23,38 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final AuthServiceClient authServiceClient;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, AuthServiceClient authServiceClient) {
         this.authService = authService;
+        this.authServiceClient = authServiceClient;
     }
 
     @PostMapping("/register")
     @PreAuthorize("permitAll()")
     @org.springframework.web.bind.annotation.ResponseStatus(HttpStatus.CREATED)
     public RegisterResponse register(@Valid @RequestBody RegisterRequest request) {
+        if (authServiceClient.isEnabled()) {
+            return authServiceClient.register(request);
+        }
         return authService.register(request);
     }
 
     @PostMapping("/login")
     @PreAuthorize("permitAll()")
     public LoginResponse login(@Valid @RequestBody LoginRequest request) {
+        if (authServiceClient.isEnabled()) {
+            return authServiceClient.login(request);
+        }
         return authService.login(request);
     }
 
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
     public UserSummary me(@AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
+        if (authServiceClient.isEnabled()) {
+            return authServiceClient.me();
+        }
         return authService.me(authenticatedUser.id());
     }
 }

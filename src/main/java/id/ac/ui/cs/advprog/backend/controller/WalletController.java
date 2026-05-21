@@ -5,6 +5,7 @@ import id.ac.ui.cs.advprog.backend.dto.TransactionResponse;
 import id.ac.ui.cs.advprog.backend.dto.WalletResponse;
 import id.ac.ui.cs.advprog.backend.security.AuthenticatedUser;
 import id.ac.ui.cs.advprog.backend.service.WalletService;
+import id.ac.ui.cs.advprog.backend.service.WalletServiceClient;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -20,13 +21,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class WalletController {
 
     private final WalletService walletService;
+    private final WalletServiceClient walletServiceClient;
 
-    public WalletController(WalletService walletService) {
+    public WalletController(WalletService walletService, WalletServiceClient walletServiceClient) {
         this.walletService = walletService;
+        this.walletServiceClient = walletServiceClient;
     }
 
     @GetMapping("/balance")
     public WalletResponse getBalance(@AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
+        if (walletServiceClient.isEnabled()) {
+            return walletServiceClient.getBalance();
+        }
         return walletService.getWallet(authenticatedUser.id());
     }
 
@@ -36,6 +42,9 @@ public class WalletController {
         @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
         @RequestBody TopUpRequest request
     ) {
+        if (walletServiceClient.isEnabled()) {
+            return walletServiceClient.topUp(request);
+        }
         return walletService.topUp(authenticatedUser.id(), request);
     }
 
@@ -43,6 +52,9 @@ public class WalletController {
     public List<TransactionResponse> getTransactionHistory(
         @AuthenticationPrincipal AuthenticatedUser authenticatedUser
     ) {
+        if (walletServiceClient.isEnabled()) {
+            return walletServiceClient.getTransactions();
+        }
         return walletService.getTransactionHistory(authenticatedUser.id());
     }
 }

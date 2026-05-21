@@ -5,11 +5,13 @@ import id.ac.ui.cs.advprog.backend.dto.AuctionDetailResponse;
 import id.ac.ui.cs.advprog.backend.dto.AuctionSummaryResponse;
 import id.ac.ui.cs.advprog.backend.dto.BidPlaceRequest;
 import id.ac.ui.cs.advprog.backend.dto.BidResponse;
+import id.ac.ui.cs.advprog.backend.dto.TopUpRequest;
 import id.ac.ui.cs.advprog.backend.model.Auction;
 import id.ac.ui.cs.advprog.backend.model.AuctionStatus;
 import id.ac.ui.cs.advprog.backend.model.Bid;
 import id.ac.ui.cs.advprog.backend.model.Listing;
 import id.ac.ui.cs.advprog.backend.model.ListingCategory;
+import id.ac.ui.cs.advprog.backend.model.ListingStatus;
 import id.ac.ui.cs.advprog.backend.model.Role;
 import id.ac.ui.cs.advprog.backend.model.User;
 import id.ac.ui.cs.advprog.backend.repository.AuctionEventRepository;
@@ -17,6 +19,8 @@ import id.ac.ui.cs.advprog.backend.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.backend.repository.BidRepository;
 import id.ac.ui.cs.advprog.backend.repository.ListingRepository;
 import id.ac.ui.cs.advprog.backend.repository.UserRepository;
+import id.ac.ui.cs.advprog.backend.repository.WalletRepository;
+import id.ac.ui.cs.advprog.backend.repository.WalletTransactionRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -65,6 +69,9 @@ class AuctionServiceTest {
     private AuctionService auctionService;
 
     @Autowired
+    private WalletService walletService;
+
+    @Autowired
     private AuctionRepository auctionRepository;
 
     @Autowired
@@ -78,6 +85,12 @@ class AuctionServiceTest {
 
     @Autowired
     private AuctionEventRepository auctionEventRepository;
+
+    @Autowired
+    private WalletTransactionRepository walletTransactionRepository;
+
+    @Autowired
+    private WalletRepository walletRepository;
 
     @Autowired
     private InMemoryListingPriceUpdateQueue listingPriceUpdateQueue;
@@ -97,6 +110,8 @@ class AuctionServiceTest {
         auctionRepository.deleteAll();
         auctionEventRepository.deleteAll();
         listingRepository.deleteAll();
+        walletTransactionRepository.deleteAll();
+        walletRepository.deleteAll();
         userRepository.deleteAll();
 
         mutableClock.setInstant(BASE_TIME);
@@ -172,8 +187,10 @@ class AuctionServiceTest {
             new BidPlaceRequest(money("120.00")),
             buyer.getId()
         );
+        Listing listing = listingRepository.findById(updatedAuction.listingId()).orElseThrow();
 
         assertEquals(AuctionStatus.EXTENDED, updatedAuction.status());
+        assertEquals(ListingStatus.EXTENDED, listing.getStatus());
         assertEquals(BASE_TIME.plus(Duration.ofMinutes(11).plusSeconds(30)), updatedAuction.endsAt());
         assertEquals(1, updatedAuction.extensionCount());
     }
@@ -190,12 +207,37 @@ class AuctionServiceTest {
 
         AuctionDetailResponse resolvedAuction = auctionService.getAuctionDetail(createdAuction.id());
         User reloadedBuyer = userRepository.findById(buyer.getId()).orElseThrow();
+        User reloadedSeller = userRepository.findById(seller.getId()).orElseThrow();
+        Listing listing = listingRepository.findById(resolvedAuction.listingId()).orElseThrow();
 
         assertEquals(AuctionStatus.WON, resolvedAuction.status());
+        assertEquals(ListingStatus.WON, listing.getStatus());
         assertNotNull(resolvedAuction.winningBid());
         assertEquals(money("160.00"), resolvedAuction.winningBid().amount());
         assertEquals(money("840.00"), reloadedBuyer.getAvailableBalance());
         assertEquals(money("0.00"), reloadedBuyer.getHeldBalance());
+        assertEquals(money("160.00"), reloadedSeller.getAvailableBalance());
+        assertEquals(money("0.00"), reloadedSeller.getHeldBalance());
+    }
+
+    @Test
+    void getAuctionDetailSynchronizesStaleListingStatusFromAuctionStatus() {
+        AuctionDetailResponse createdAuction = auctionService.createAuction(
+            auctionRequest(true, 5L, "100.00", "150.00", "10.00"),
+            seller.getId()
+        );
+        Auction auction = auctionRepository.findById(createdAuction.id()).orElseThrow();
+        Listing listing = listingRepository.findById(createdAuction.listingId()).orElseThrow();
+        auction.setStatus(AuctionStatus.WON);
+        listing.setStatus(ListingStatus.EXTENDED);
+        auctionRepository.save(auction);
+        listingRepository.save(listing);
+
+        AuctionDetailResponse detail = auctionService.getAuctionDetail(createdAuction.id());
+        Listing syncedListing = listingRepository.findById(createdAuction.listingId()).orElseThrow();
+
+        assertEquals(AuctionStatus.WON, detail.status());
+        assertEquals(ListingStatus.WON, syncedListing.getStatus());
     }
 
     @Test
@@ -210,11 +252,15 @@ class AuctionServiceTest {
 
         AuctionDetailResponse resolvedAuction = auctionService.getAuctionDetail(createdAuction.id());
         User reloadedBuyer = userRepository.findById(buyer.getId()).orElseThrow();
+        User reloadedSeller = userRepository.findById(seller.getId()).orElseThrow();
+        Listing listing = listingRepository.findById(resolvedAuction.listingId()).orElseThrow();
 
         assertEquals(AuctionStatus.UNSOLD, resolvedAuction.status());
+        assertEquals(ListingStatus.UNSOLD, listing.getStatus());
         assertNull(resolvedAuction.winningBid());
         assertEquals(money("1000.00"), reloadedBuyer.getAvailableBalance());
         assertEquals(money("0.00"), reloadedBuyer.getHeldBalance());
+        assertEquals(money("0.00"), reloadedSeller.getAvailableBalance());
     }
 
     @Test
@@ -259,6 +305,35 @@ class AuctionServiceTest {
     }
 
     @Test
+    void placeBidUsesWalletTopUpBalanceAndRejectsInsufficientBalanceBeforeTopUp() {
+        User zeroBalanceBuyer = saveUser(Role.BUYER, money("0.00"));
+        AuctionDetailResponse createdAuction = auctionService.createAuction(
+            auctionRequest(true, 30L, "100.00", "150.00", "10.00"),
+            seller.getId()
+        );
+
+        assertStatusAndReason(
+            HttpStatus.CONFLICT,
+            "Insufficient balance for this bid",
+            () -> auctionService.placeBid(createdAuction.id(), new BidPlaceRequest(money("120.00")), zeroBalanceBuyer.getId())
+        );
+        assertEquals(0, bidRepository.countByAuctionId(createdAuction.id()));
+
+        walletService.topUp(zeroBalanceBuyer.getId(), new TopUpRequest(money("200.00")));
+        AuctionDetailResponse updatedAuction = auctionService.placeBid(
+            createdAuction.id(),
+            new BidPlaceRequest(money("120.00")),
+            zeroBalanceBuyer.getId()
+        );
+
+        User reloadedBuyer = userRepository.findById(zeroBalanceBuyer.getId()).orElseThrow();
+        assertEquals(money("120.00"), updatedAuction.leadingBid().amount());
+        assertEquals(money("80.00"), reloadedBuyer.getAvailableBalance());
+        assertEquals(money("120.00"), reloadedBuyer.getHeldBalance());
+        assertEquals(1, bidRepository.countByAuctionId(createdAuction.id()));
+    }
+
+    @Test
     void detailUsesSequenceNumberAsDeterministicTieBreakerWhenAmountsMatch() {
         AuctionDetailResponse createdAuction = auctionService.createAuction(
             auctionRequest(true, 30L, "100.00", "150.00", "10.00"),
@@ -299,6 +374,8 @@ class AuctionServiceTest {
             auctionRequest(false, 30L, "100.00", "150.00", "10.00"),
             seller.getId()
         );
+        Listing draftListing = listingRepository.findById(draftAuction.listingId()).orElseThrow();
+        assertEquals(ListingStatus.DRAFT, draftListing.getStatus());
 
         assertStatusAndReason(
             HttpStatus.FORBIDDEN,
@@ -307,7 +384,9 @@ class AuctionServiceTest {
         );
 
         AuctionDetailResponse activatedAuction = auctionService.activateAuction(draftAuction.id(), seller.getId());
+        Listing activatedListing = listingRepository.findById(activatedAuction.listingId()).orElseThrow();
         assertEquals(AuctionStatus.ACTIVE, activatedAuction.status());
+        assertEquals(ListingStatus.ACTIVE, activatedListing.getStatus());
         assertNotNull(activatedAuction.startsAt());
         assertNotNull(activatedAuction.endsAt());
 
@@ -379,7 +458,7 @@ class AuctionServiceTest {
     }
 
     @Test
-    void closeAuctionShouldAllowManualClosureAndRejectInvalidClosureStates() {
+    void closeAuctionShouldAllowNoBidManualClosureAndRejectBidAuctions() {
         AuctionDetailResponse futureAuction = auctionService.createAuction(
             auctionRequest(true, 30L, "100.00", "150.00", "10.00"),
             seller.getId()
@@ -408,9 +487,15 @@ class AuctionServiceTest {
         auctionService.placeBid(expiringAuction.id(), new BidPlaceRequest(money("190.00")), buyer.getId());
         mutableClock.advance(Duration.ofMinutes(2));
 
-        AuctionDetailResponse closedAuction = auctionService.closeAuction(expiringAuction.id(), seller.getId());
-        assertEquals(AuctionStatus.WON, closedAuction.status());
-        assertNotNull(closedAuction.closedAt());
+        assertStatusAndReason(
+            HttpStatus.CONFLICT,
+            "Auction with bids is closed automatically by the system",
+            () -> auctionService.closeAuction(expiringAuction.id(), seller.getId())
+        );
+
+        AuctionDetailResponse automaticallyClosedAuction = auctionService.getAuctionDetail(expiringAuction.id());
+        assertEquals(AuctionStatus.WON, automaticallyClosedAuction.status());
+        assertNotNull(automaticallyClosedAuction.closedAt());
 
         assertStatusAndReason(
             HttpStatus.CONFLICT,

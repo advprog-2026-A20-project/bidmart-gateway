@@ -47,7 +47,12 @@ public class ListingService {
     private static final List<AuctionStatus> COMPLETED_AUCTION_STATUSES = List.of(
         AuctionStatus.CLOSED,
         AuctionStatus.WON,
-        AuctionStatus.UNSOLD
+        AuctionStatus.UNSOLD,
+        AuctionStatus.CANCELLED
+    );
+    private static final List<ListingStatus> PUBLIC_LISTING_STATUSES = List.of(
+        ListingStatus.ACTIVE,
+        ListingStatus.EXTENDED
     );
 
     private final AuctionRepository auctionRepository;
@@ -102,7 +107,6 @@ public class ListingService {
         );
 
         Specification<Listing> specification = distinctResults()
-            .and(hasStatus(ListingStatus.ACTIVE))
             .and(hasCategoryOrDescendant(category))
             .and(matchesKeyword(keyword))
             .and(hasMinPrice(minPrice))
@@ -110,6 +114,7 @@ public class ListingService {
 
         List<Listing> matchingListings = listingRepository.findAll(specification, safeSort);
         List<Listing> filteredListings = matchingListings.stream()
+            .filter(this::isPublicListing)
             .filter(listing -> matchesAuctionWindow(listing.getId(), endingAfter, endingBefore))
             .toList();
 
@@ -124,10 +129,11 @@ public class ListingService {
     public ListingDetailResponse getListingDetail(UUID listingId) {
         Listing listing = listingRepository.findById(listingId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Listing not found"));
-        if (listing.getStatus() != ListingStatus.ACTIVE) {
+        Auction auction = findAuctionByListingId(listingId).orElse(null);
+        if (effectiveListingStatus(listing, auction) == ListingStatus.CANCELLED) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Listing not found");
         }
-        return toDetailResponse(listing);
+        return toDetailResponse(listing, auction);
     }
 
     @Transactional
@@ -145,10 +151,8 @@ public class ListingService {
     public ListingDetailResponse cancelListing(UUID listingId, UUID sellerId) {
         Listing listing = getOwnedEditableListing(listingId, sellerId);
         findAuctionByListingId(listingId).ifPresent(auction -> {
-            if (auction.getStatus() == AuctionStatus.DRAFT
-                || auction.getStatus() == AuctionStatus.ACTIVE
-                || auction.getStatus() == AuctionStatus.EXTENDED) {
-                auction.setStatus(AuctionStatus.CLOSED);
+            if (auction.getStatus() == AuctionStatus.DRAFT || auction.getStatus() == AuctionStatus.ACTIVE) {
+                auction.setStatus(AuctionStatus.CANCELLED);
                 auction.setClosedAt(Instant.now(clock));
                 auctionRepository.save(auction);
             }
@@ -200,14 +204,15 @@ public class ListingService {
         Optional<Auction> optionalAuction = findAuctionByListingId(listingId);
         Auction auction = optionalAuction.orElse(null);
 
-        boolean active = listing.getStatus() == ListingStatus.ACTIVE;
+        ListingStatus listingStatus = effectiveListingStatus(listing, auction);
+        boolean active = isListingOpenForBid(listingStatus);
         if (!active) {
             return new ListingBidValidationResponse(
                 listing.getId(),
                 false,
                 false,
                 "Listing is no longer active",
-                listing.getStatus(),
+                listingStatus,
                 auction == null ? null : auction.getStatus(),
                 auction == null ? null : auction.getEndsAt()
             );
@@ -273,12 +278,22 @@ public class ListingService {
     private Listing getOwnedEditableListing(UUID listingId, UUID sellerId) {
         Listing listing = listingRepository.findById(listingId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Listing not found"));
+        Optional<Auction> optionalAuction = findAuctionByListingId(listingId);
+        Auction auction = optionalAuction.orElse(null);
 
         if (!listing.getSeller().getId().equals(sellerId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not own this listing");
         }
-        if (listing.getStatus() != ListingStatus.ACTIVE) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Listing is not active");
+        optionalAuction.ifPresent(existingAuction -> {
+            if (existingAuction.getStatus() != AuctionStatus.DRAFT && existingAuction.getStatus() != AuctionStatus.ACTIVE) {
+                throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Listing cannot be modified in auction status " + existingAuction.getStatus()
+                );
+            }
+        });
+        if (!isListingEditableStatus(effectiveListingStatus(listing, auction))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Listing is not editable");
         }
         if (bidRepository.existsByListingId(listingId)) {
             throw new ResponseStatusException(
@@ -293,6 +308,7 @@ public class ListingService {
     private ListingResponse toSummaryResponse(Listing listing) {
         Auction auction = findAuctionByListingId(listing.getId()).orElse(null);
         long totalBids = auction == null ? 0 : bidRepository.countByAuctionId(auction.getId());
+        ListingStatus listingStatus = effectiveListingStatus(listing, auction);
 
         return new ListingResponse(
             listing.getId(),
@@ -304,7 +320,7 @@ public class ListingService {
             listing.getCategory().pathLabel(),
             listing.getSeller().getId(),
             listing.getSeller().getEmail(),
-            listing.getStatus(),
+            listingStatus,
             auction == null ? null : auction.getId(),
             auction == null ? null : auction.getStatus(),
             auction == null ? null : auction.getEndsAt(),
@@ -318,7 +334,12 @@ public class ListingService {
 
     private ListingDetailResponse toDetailResponse(Listing listing) {
         Auction auction = findAuctionByListingId(listing.getId()).orElse(null);
+        return toDetailResponse(listing, auction);
+    }
+
+    private ListingDetailResponse toDetailResponse(Listing listing, Auction auction) {
         long totalBids = auction == null ? 0 : bidRepository.countByAuctionId(auction.getId());
+        ListingStatus listingStatus = effectiveListingStatus(listing, auction);
 
         return new ListingDetailResponse(
             listing.getId(),
@@ -334,7 +355,7 @@ public class ListingService {
             listing.getCategory().pathLabel(),
             listing.getSeller().getId(),
             listing.getSeller().getEmail(),
-            listing.getStatus(),
+            listingStatus,
             auction == null ? null : auction.getId(),
             auction == null ? null : auction.getStatus(),
             auction == null ? null : auction.getStartsAt(),
@@ -424,8 +445,39 @@ public class ListingService {
         };
     }
 
-    private Specification<Listing> hasStatus(ListingStatus status) {
-        return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("status"), status);
+    private boolean isListingOpenForBid(ListingStatus status) {
+        return status == ListingStatus.ACTIVE || status == ListingStatus.EXTENDED;
+    }
+
+    private boolean isListingEditableStatus(ListingStatus status) {
+        return status == ListingStatus.DRAFT || status == ListingStatus.ACTIVE;
+    }
+
+    private boolean isPublicListing(Listing listing) {
+        Auction auction = findAuctionByListingId(listing.getId()).orElse(null);
+        return PUBLIC_LISTING_STATUSES.contains(effectiveListingStatus(listing, auction));
+    }
+
+    private ListingStatus effectiveListingStatus(Listing listing, Auction auction) {
+        if (listing.getStatus() == ListingStatus.CANCELLED) {
+            return ListingStatus.CANCELLED;
+        }
+        if (auction == null || auction.getStatus() == null) {
+            return listing.getStatus();
+        }
+        return toListingStatus(auction.getStatus());
+    }
+
+    private ListingStatus toListingStatus(AuctionStatus auctionStatus) {
+        return switch (auctionStatus) {
+            case DRAFT -> ListingStatus.DRAFT;
+            case ACTIVE -> ListingStatus.ACTIVE;
+            case EXTENDED -> ListingStatus.EXTENDED;
+            case CLOSED -> ListingStatus.CLOSED;
+            case WON -> ListingStatus.WON;
+            case UNSOLD -> ListingStatus.UNSOLD;
+            case CANCELLED -> ListingStatus.CANCELLED;
+        };
     }
 
     private Specification<Listing> hasCategoryOrDescendant(ListingCategory category) {

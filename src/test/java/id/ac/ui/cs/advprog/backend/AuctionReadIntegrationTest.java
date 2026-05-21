@@ -11,6 +11,8 @@ import id.ac.ui.cs.advprog.backend.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.backend.repository.BidRepository;
 import id.ac.ui.cs.advprog.backend.repository.ListingRepository;
 import id.ac.ui.cs.advprog.backend.repository.UserRepository;
+import id.ac.ui.cs.advprog.backend.repository.WalletRepository;
+import id.ac.ui.cs.advprog.backend.repository.WalletTransactionRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -58,11 +60,19 @@ class AuctionReadIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private WalletTransactionRepository walletTransactionRepository;
+
+    @Autowired
+    private WalletRepository walletRepository;
+
     @BeforeEach
     void setUp() {
         bidRepository.deleteAll();
         auctionRepository.deleteAll();
         listingRepository.deleteAll();
+        walletTransactionRepository.deleteAll();
+        walletRepository.deleteAll();
         userRepository.deleteAll();
     }
 

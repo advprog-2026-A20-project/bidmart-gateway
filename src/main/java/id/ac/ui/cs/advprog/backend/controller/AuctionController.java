@@ -8,6 +8,7 @@ import id.ac.ui.cs.advprog.backend.dto.BidResponse;
 import id.ac.ui.cs.advprog.backend.security.AuthenticatedUser;
 import id.ac.ui.cs.advprog.backend.service.AuctionReadGateway;
 import id.ac.ui.cs.advprog.backend.service.AuctionService;
+import id.ac.ui.cs.advprog.backend.service.BiddingCommandServiceClient;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -28,10 +29,16 @@ public class AuctionController {
 
     private final AuctionService auctionService;
     private final AuctionReadGateway auctionReadGateway;
+    private final BiddingCommandServiceClient biddingCommandServiceClient;
 
-    public AuctionController(AuctionService auctionService, AuctionReadGateway auctionReadGateway) {
+    public AuctionController(
+        AuctionService auctionService,
+        AuctionReadGateway auctionReadGateway,
+        BiddingCommandServiceClient biddingCommandServiceClient
+    ) {
         this.auctionService = auctionService;
         this.auctionReadGateway = auctionReadGateway;
+        this.biddingCommandServiceClient = biddingCommandServiceClient;
     }
 
     @PostMapping
@@ -79,6 +86,9 @@ public class AuctionController {
         @Valid @RequestBody BidPlaceRequest request,
         @AuthenticationPrincipal AuthenticatedUser authenticatedUser
     ) {
+        if (biddingCommandServiceClient.isEnabled()) {
+            return biddingCommandServiceClient.placeBid(auctionId, request);
+        }
         return auctionService.placeBid(auctionId, request, authenticatedUser.id());
     }
 

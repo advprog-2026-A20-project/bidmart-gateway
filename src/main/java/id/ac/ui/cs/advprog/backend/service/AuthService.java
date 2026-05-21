@@ -26,7 +26,7 @@ public class AuthService {
 
     private static final Pattern EMAIL_PATTERN =
         Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
-    private static final BigDecimal DEFAULT_BUYER_STARTING_BALANCE = new BigDecimal("1000000.00");
+    private static final BigDecimal DEFAULT_BUYER_STARTING_BALANCE = BigDecimal.ZERO;
     private final WalletService walletService;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;

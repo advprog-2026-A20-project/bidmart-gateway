@@ -11,6 +11,8 @@ import id.ac.ui.cs.advprog.backend.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.backend.repository.BidRepository;
 import id.ac.ui.cs.advprog.backend.repository.ListingRepository;
 import id.ac.ui.cs.advprog.backend.repository.UserRepository;
+import id.ac.ui.cs.advprog.backend.repository.WalletRepository;
+import id.ac.ui.cs.advprog.backend.repository.WalletTransactionRepository;
 import id.ac.ui.cs.advprog.backend.security.JwtService;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -66,11 +68,19 @@ class MarketplaceFoundationIntegrationTest {
     @Autowired
     private JwtService jwtService;
 
+    @Autowired
+    private WalletTransactionRepository walletTransactionRepository;
+
+    @Autowired
+    private WalletRepository walletRepository;
+
     @BeforeEach
     void setUp() {
         bidRepository.deleteAll();
         auctionRepository.deleteAll();
         listingRepository.deleteAll();
+        walletTransactionRepository.deleteAll();
+        walletRepository.deleteAll();
         userRepository.deleteAll();
     }
 
@@ -217,7 +227,7 @@ class MarketplaceFoundationIntegrationTest {
     }
 
     @Test
-    void cancelListingShouldMarkListingAsCancelledAndCloseAuction() throws Exception {
+    void cancelListingShouldMarkListingAndAuctionAsCancelled() throws Exception {
         User seller = createUser("seller@example.com", "password123", Role.SELLER);
         Listing listing = saveListing(seller, "Camera", "Mirrorless camera", ListingCategory.ELECTRONICS, "2500000.00");
         createAuctionFor(listing, AuctionStatus.ACTIVE, Instant.now().plus(3, ChronoUnit.HOURS));
@@ -226,7 +236,7 @@ class MarketplaceFoundationIntegrationTest {
                 .header("Authorization", bearerToken(seller)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("CANCELLED"))
-            .andExpect(jsonPath("$.auctionStatus").value("CLOSED"))
+            .andExpect(jsonPath("$.auctionStatus").value("CANCELLED"))
             .andExpect(jsonPath("$.cancelledAt").isNotEmpty());
     }
 

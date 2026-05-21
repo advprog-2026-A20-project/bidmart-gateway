@@ -76,6 +76,7 @@ class ProxyingAuctionReadGatewayTest {
         List<AuctionSummaryResponse> response = gateway.listAuctions();
 
         assertEquals(List.of(summary), response);
+        verify(auctionService).listAuctions();
         server.verify();
     }
 
@@ -192,6 +193,7 @@ class ProxyingAuctionReadGatewayTest {
         List<AuctionSummaryResponse> response = gateway.listAuctions();
 
         assertEquals(List.of(summary), response);
+        verify(auctionService).listAuctions();
         server.verify();
     }
 

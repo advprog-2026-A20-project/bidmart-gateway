@@ -101,6 +101,7 @@ public class ProxyingAuctionReadGateway implements AuctionReadGateway {
             return unwrap(localInvocation.get());
         }
 
+        InvocationResult<T> localSyncResult = localInvocation.get();
         logProxyHit("remote-hit", rolloutMode, operation);
         InvocationResult<T> remoteResult = remoteInvocation.get();
         if (remoteResult.isSuccess()) {
@@ -124,19 +125,18 @@ public class ProxyingAuctionReadGateway implements AuctionReadGateway {
                 fallbackReason(remoteResult.exception()),
                 fallbackMessage(remoteResult.exception())
             );
-            InvocationResult<T> localResult = localInvocation.get();
-            if (!Objects.equals(remoteResult.status(), localResult.status())) {
+            if (!Objects.equals(remoteResult.status(), localSyncResult.status())) {
                 logger.warn(
                     "auction-query.proxy event=status-mismatch rolloutMode={} operation={} remoteStatus={} localStatus={} remoteDurationMs={} localDurationMs={}",
                     rolloutMode,
                     operation,
                     remoteResult.status(),
-                    localResult.status(),
+                    localSyncResult.status(),
                     remoteResult.durationMs(),
-                    localResult.durationMs()
+                    localSyncResult.durationMs()
                 );
             }
-            return unwrap(localResult);
+            return unwrap(localSyncResult);
         }
 
         throw toResponseStatusException(remoteResult);

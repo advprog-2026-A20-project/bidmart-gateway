@@ -33,8 +33,8 @@ Atau jalankan dengan PostgreSQL:
 ```bash
 SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/bidmart \
 SPRING_DATASOURCE_USERNAME=postgres \
-SPRING_DATASOURCE_PASSWORD=postgres \
-JWT_SECRET=local-dev-secret-please-change-32-chars \
+SPRING_DATASOURCE_PASSWORD=<password> \
+JWT_SECRET=<jwt-secret-at-least-32-chars> \
 ./gradlew bootRun
 ```
 
@@ -42,6 +42,12 @@ JWT_SECRET=local-dev-secret-please-change-32-chars \
 
 ```bash
 ./gradlew test
+```
+
+## Smoke Test
+
+```bash
+curl http://localhost:8080/api/health
 ```
 
 ## Dependency Service Lain

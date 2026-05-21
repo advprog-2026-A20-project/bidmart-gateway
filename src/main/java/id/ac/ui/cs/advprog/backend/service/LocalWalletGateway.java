@@ -1,8 +1,13 @@
 package id.ac.ui.cs.advprog.backend.service;
 
 import id.ac.ui.cs.advprog.backend.model.User;
+import id.ac.ui.cs.advprog.backend.model.Wallet;
+import id.ac.ui.cs.advprog.backend.model.WalletTransaction;
 import id.ac.ui.cs.advprog.backend.repository.UserRepository;
+import id.ac.ui.cs.advprog.backend.repository.WalletRepository;
+import id.ac.ui.cs.advprog.backend.repository.WalletTransactionRepository;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -13,9 +18,17 @@ import org.springframework.web.server.ResponseStatusException;
 public class LocalWalletGateway implements WalletGateway {
 
     private final UserRepository userRepository;
+    private final WalletRepository walletRepository;
+    private final WalletTransactionRepository transactionRepository;
 
-    public LocalWalletGateway(UserRepository userRepository) {
+    public LocalWalletGateway(
+        UserRepository userRepository,
+        WalletRepository walletRepository,
+        WalletTransactionRepository transactionRepository
+    ) {
         this.userRepository = userRepository;
+        this.walletRepository = walletRepository;
+        this.transactionRepository = transactionRepository;
     }
 
     @Override
@@ -26,9 +39,14 @@ public class LocalWalletGateway implements WalletGateway {
             return;
         }
 
-        User user = loadUser(userId);
+        User user = loadUserForUpdate(userId);
         applyHold(user, operationAmount);
-        persist(user);
+        persistWithTransaction(
+            user,
+            WalletTransaction.TransactionType.HOLD,
+            operationAmount,
+            "Hold dana untuk auction " + auctionId
+        );
     }
 
     @Override
@@ -39,9 +57,14 @@ public class LocalWalletGateway implements WalletGateway {
             return;
         }
 
-        User user = loadUser(userId);
+        User user = loadUserForUpdate(userId);
         applyRelease(user, operationAmount);
-        persist(user);
+        persistWithTransaction(
+            user,
+            WalletTransaction.TransactionType.RELEASE,
+            operationAmount,
+            "Release hold dana untuk auction " + auctionId
+        );
     }
 
     @Override
@@ -52,13 +75,36 @@ public class LocalWalletGateway implements WalletGateway {
             return;
         }
 
-        User user = loadUser(userId);
+        User user = loadUserForUpdate(userId);
         applyCapture(user, operationAmount);
-        persist(user);
+        persistWithTransaction(
+            user,
+            WalletTransaction.TransactionType.PAYMENT,
+            operationAmount,
+            "Pembayaran pemenang auction " + auctionId
+        );
     }
 
-    private User loadUser(UUID userId) {
-        return userRepository.findById(userId)
+    @Override
+    @Transactional
+    public void creditFunds(UUID userId, UUID auctionId, BigDecimal amount) {
+        BigDecimal operationAmount = sanitizeAmount(amount);
+        if (isNoop(operationAmount)) {
+            return;
+        }
+
+        User user = loadUserForUpdate(userId);
+        user.setAvailableBalance(defaultAmount(user.getAvailableBalance()).add(operationAmount));
+        persistWithTransaction(
+            user,
+            WalletTransaction.TransactionType.PAYMENT,
+            operationAmount,
+            "Pembayaran diterima dari auction " + auctionId
+        );
+    }
+
+    private User loadUserForUpdate(UUID userId) {
+        return userRepository.findByIdForUpdate(userId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
     }
 
@@ -94,8 +140,33 @@ public class LocalWalletGateway implements WalletGateway {
         }
     }
 
-    private void persist(User user) {
+    private void persistWithTransaction(
+        User user,
+        WalletTransaction.TransactionType type,
+        BigDecimal amount,
+        String description
+    ) {
         userRepository.save(user);
+        Wallet wallet = syncWalletBalance(user);
+        WalletTransaction transaction = WalletTransaction.builder()
+            .wallet(wallet)
+            .type(type)
+            .amount(amount)
+            .balanceAfter(defaultAmount(user.getAvailableBalance()))
+            .description(description)
+            .build();
+        transactionRepository.save(transaction);
+    }
+
+    private Wallet syncWalletBalance(User user) {
+        Wallet wallet = walletRepository.findByUserId(user.getId())
+            .orElseGet(() -> Wallet.builder()
+                .user(user)
+                .balance(defaultAmount(user.getAvailableBalance()))
+                .build());
+        wallet.setBalance(defaultAmount(user.getAvailableBalance()));
+        wallet.setUpdatedAt(Instant.now());
+        return walletRepository.save(wallet);
     }
 
     private boolean isNoop(BigDecimal amount) {

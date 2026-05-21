@@ -95,6 +95,33 @@ class AuthIntegrationTest {
     }
 
     @Test
+    void registerBuyerShouldStartWithZeroBalance() throws Exception {
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "new-buyer@example.com",
+                      "password": "password123",
+                      "role": "BUYER"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.email").value("new-buyer@example.com"))
+            .andExpect(jsonPath("$.role").value("BUYER"));
+
+        User buyer = userRepository.findByEmailIgnoreCase("new-buyer@example.com").orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(0, buyer.getAvailableBalance().compareTo(java.math.BigDecimal.ZERO));
+        org.junit.jupiter.api.Assertions.assertEquals(0, buyer.getHeldBalance().compareTo(java.math.BigDecimal.ZERO));
+
+        mockMvc.perform(get("/api/wallet/balance")
+                .header("Authorization", bearerToken(buyer)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.balance").value(0))
+            .andExpect(jsonPath("$.availableBalance").value(0))
+            .andExpect(jsonPath("$.heldBalance").value(0));
+    }
+
+    @Test
     void registerShouldRejectInvalidPayload() throws Exception {
         mockMvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)

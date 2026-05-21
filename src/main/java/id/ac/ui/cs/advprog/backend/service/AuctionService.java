@@ -10,6 +10,7 @@ import id.ac.ui.cs.advprog.backend.model.Auction;
 import id.ac.ui.cs.advprog.backend.model.AuctionStatus;
 import id.ac.ui.cs.advprog.backend.model.Bid;
 import id.ac.ui.cs.advprog.backend.model.Listing;
+import id.ac.ui.cs.advprog.backend.model.ListingStatus;
 import id.ac.ui.cs.advprog.backend.model.Role;
 import id.ac.ui.cs.advprog.backend.model.User;
 import id.ac.ui.cs.advprog.backend.repository.AuctionRepository;
@@ -96,6 +97,8 @@ public class AuctionService {
 
         if (Boolean.TRUE.equals(request.activateNow())) {
             activateAuctionInternal(auction, now);
+        } else {
+            syncListingStatus(auction);
         }
 
         Auction savedAuction = auctionRepository.save(auction);
@@ -167,6 +170,7 @@ public class AuctionService {
 
     private Auction syncAuctionIfExpired(Auction auction) {
         if (!shouldCloseAuction(auction, Instant.now(clock))) {
+            syncListingStatus(auction);
             return auction;
         }
         return loadAndCloseAuction(auction.getId());
@@ -203,6 +207,7 @@ public class AuctionService {
 
         boolean reserveMet = isReserveMet(auction, leadingBid);
         resolveAuctionOutcome(auction, leadingBid, reserveMet);
+        syncListingStatus(auction);
 
         auctionRepository.save(auction);
         auctionEventPublisher.publishAuctionResolved(auction, leadingBid, reserveMet);
@@ -218,6 +223,7 @@ public class AuctionService {
             auction.setExtensionCount(auction.getExtensionCount() + 1);
             if (auction.getStatus() == AuctionStatus.ACTIVE) {
                 auction.setStatus(AuctionStatus.EXTENDED);
+                syncListingStatus(auction);
             }
         }
     }
@@ -227,6 +233,7 @@ public class AuctionService {
         auction.setActivatedAt(now);
         auction.setStartsAt(now);
         auction.setEndsAt(now.plus(Duration.ofMinutes(auction.getDurationMinutes())));
+        syncListingStatus(auction);
     }
 
     private void ensureAuctionAcceptsBid(Auction auction, UUID bidderId) {
@@ -355,6 +362,12 @@ public class AuctionService {
         if (!isBiddableStatus(auction.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Auction is already closed");
         }
+        if (bidRepository.countByAuctionId(auction.getId()) > 0) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Auction with bids is closed automatically by the system"
+            );
+        }
         if (auction.getEndsAt() != null && now.isBefore(auction.getEndsAt())) {
             throw new ResponseStatusException(
                 HttpStatus.CONFLICT,
@@ -370,6 +383,11 @@ public class AuctionService {
     private void resolveAuctionOutcome(Auction auction, Bid leadingBid, boolean reserveMet) {
         if (reserveMet) {
             walletGateway.captureFunds(leadingBid.getBidder().getId(), auction.getId(), leadingBid.getAmount());
+            walletGateway.creditFunds(
+                auction.getListing().getSeller().getId(),
+                auction.getId(),
+                leadingBid.getAmount()
+            );
             auction.setStatus(AuctionStatus.WON);
             return;
         }
@@ -377,6 +395,30 @@ public class AuctionService {
             walletGateway.releaseFunds(leadingBid.getBidder().getId(), auction.getId(), leadingBid.getAmount());
         }
         auction.setStatus(AuctionStatus.UNSOLD);
+    }
+
+    private void syncListingStatus(Auction auction) {
+        if (auction == null || auction.getListing() == null || auction.getStatus() == null) {
+            return;
+        }
+        ListingStatus listingStatus = toListingStatus(auction.getStatus());
+        if (auction.getListing().getStatus() == listingStatus) {
+            return;
+        }
+        auction.getListing().setStatus(listingStatus);
+        auction.getListing().setUpdatedAt(Instant.now(clock));
+    }
+
+    private ListingStatus toListingStatus(AuctionStatus auctionStatus) {
+        return switch (auctionStatus) {
+            case DRAFT -> ListingStatus.DRAFT;
+            case ACTIVE -> ListingStatus.ACTIVE;
+            case EXTENDED -> ListingStatus.EXTENDED;
+            case CLOSED -> ListingStatus.CLOSED;
+            case WON -> ListingStatus.WON;
+            case UNSOLD -> ListingStatus.UNSOLD;
+            case CANCELLED -> ListingStatus.CANCELLED;
+        };
     }
 
     private AuctionSummaryResponse toSummaryResponse(Auction auction) {

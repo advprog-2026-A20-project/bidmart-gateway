@@ -10,7 +10,9 @@ import id.ac.ui.cs.advprog.backend.repository.UserRepository;
 import id.ac.ui.cs.advprog.backend.repository.WalletRepository;
 import id.ac.ui.cs.advprog.backend.repository.WalletTransactionRepository;
 import id.ac.ui.cs.advprog.backend.security.JwtService;
+import id.ac.ui.cs.advprog.backend.service.WalletGateway;
 import java.math.BigDecimal;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,6 +68,9 @@ class WalletIntegrationTest {
     @Autowired
     private JwtService jwtService;
 
+    @Autowired
+    private WalletGateway walletGateway;
+
     @BeforeEach
     void setUp() {
         bidRepository.deleteAll();
@@ -93,7 +98,9 @@ class WalletIntegrationTest {
                 .header("Authorization", bearerToken(buyer)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.userId").value(buyer.getId().toString()))
-            .andExpect(jsonPath("$.balance").value(50000.00));
+            .andExpect(jsonPath("$.balance").value(50000.00))
+            .andExpect(jsonPath("$.availableBalance").value(50000.00))
+            .andExpect(jsonPath("$.heldBalance").value(0));
 
         mockMvc.perform(post("/api/wallet/topup")
                 .header("Authorization", bearerToken(buyer))
@@ -105,7 +112,9 @@ class WalletIntegrationTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.userId").value(buyer.getId().toString()))
-            .andExpect(jsonPath("$.balance").value(75000.00));
+            .andExpect(jsonPath("$.balance").value(75000.00))
+            .andExpect(jsonPath("$.availableBalance").value(75000.00))
+            .andExpect(jsonPath("$.heldBalance").value(0));
 
         mockMvc.perform(get("/api/wallet/transactions")
                 .header("Authorization", bearerToken(buyer)))
@@ -116,7 +125,59 @@ class WalletIntegrationTest {
             .andExpect(jsonPath("$[0].balanceAfter").value(75000.00));
     }
 
+    @Test
+    void walletGatewayShouldHoldReleaseAndCaptureFundsConsistently() {
+        User buyer = userRepository.save(User.builder()
+            .email("bidder@example.com")
+            .passwordHash(passwordEncoder.encode("password123"))
+            .role(Role.BUYER)
+            .availableBalance(new BigDecimal("100000.00"))
+            .heldBalance(BigDecimal.ZERO)
+            .build());
+
+        UUID auctionId = UUID.randomUUID();
+
+        walletGateway.holdFunds(buyer.getId(), auctionId, new BigDecimal("40000.00"));
+        User afterHold = userRepository.findById(buyer.getId()).orElseThrow();
+        Wallet walletAfterHold = walletRepository.findByUserId(buyer.getId()).orElseThrow();
+        assertWalletBalances(afterHold, walletAfterHold, "60000.00", "40000.00");
+
+        walletGateway.releaseFunds(buyer.getId(), auctionId, new BigDecimal("10000.00"));
+        User afterRelease = userRepository.findById(buyer.getId()).orElseThrow();
+        Wallet walletAfterRelease = walletRepository.findByUserId(buyer.getId()).orElseThrow();
+        assertWalletBalances(afterRelease, walletAfterRelease, "70000.00", "30000.00");
+
+        walletGateway.captureFunds(buyer.getId(), auctionId, new BigDecimal("30000.00"));
+        User afterCapture = userRepository.findById(buyer.getId()).orElseThrow();
+        Wallet walletAfterCapture = walletRepository.findByUserId(buyer.getId()).orElseThrow();
+        assertWalletBalances(afterCapture, walletAfterCapture, "70000.00", "0.00");
+
+        User seller = userRepository.save(User.builder()
+            .email("seller@example.com")
+            .passwordHash(passwordEncoder.encode("password123"))
+            .role(Role.SELLER)
+            .availableBalance(BigDecimal.ZERO)
+            .heldBalance(BigDecimal.ZERO)
+            .build());
+
+        walletGateway.creditFunds(seller.getId(), auctionId, new BigDecimal("30000.00"));
+        User afterSellerCredit = userRepository.findById(seller.getId()).orElseThrow();
+        Wallet sellerWallet = walletRepository.findByUserId(seller.getId()).orElseThrow();
+        assertWalletBalances(afterSellerCredit, sellerWallet, "30000.00", "0.00");
+
+        var transactions = walletTransactionRepository.findByWalletIdOrderByCreatedAtDesc(walletAfterCapture.getId());
+        org.assertj.core.api.Assertions.assertThat(transactions)
+            .extracting(transaction -> transaction.getType().name())
+            .containsExactly("PAYMENT", "RELEASE", "HOLD");
+    }
+
     private String bearerToken(User user) {
         return "Bearer " + jwtService.generateToken(user);
+    }
+
+    private void assertWalletBalances(User user, Wallet wallet, String availableBalance, String heldBalance) {
+        org.junit.jupiter.api.Assertions.assertEquals(new BigDecimal(availableBalance), user.getAvailableBalance());
+        org.junit.jupiter.api.Assertions.assertEquals(new BigDecimal(heldBalance), user.getHeldBalance());
+        org.junit.jupiter.api.Assertions.assertEquals(new BigDecimal(availableBalance), wallet.getBalance());
     }
 }

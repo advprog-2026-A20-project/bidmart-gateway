@@ -18,6 +18,8 @@ import id.ac.ui.cs.advprog.backend.repository.AuctionRepository;
 import id.ac.ui.cs.advprog.backend.repository.BidRepository;
 import id.ac.ui.cs.advprog.backend.repository.ListingRepository;
 import id.ac.ui.cs.advprog.backend.repository.UserRepository;
+import id.ac.ui.cs.advprog.backend.repository.WalletRepository;
+import id.ac.ui.cs.advprog.backend.repository.WalletTransactionRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -68,6 +70,12 @@ class ListingServiceTest {
     @Autowired
     private BidRepository bidRepository;
 
+    @Autowired
+    private WalletTransactionRepository walletTransactionRepository;
+
+    @Autowired
+    private WalletRepository walletRepository;
+
     private User seller;
     private User sellerTwo;
     private User buyer;
@@ -77,6 +85,8 @@ class ListingServiceTest {
         bidRepository.deleteAll();
         auctionRepository.deleteAll();
         listingRepository.deleteAll();
+        walletTransactionRepository.deleteAll();
+        walletRepository.deleteAll();
         userRepository.deleteAll();
 
         seller = saveUser(Role.SELLER);
@@ -208,7 +218,7 @@ class ListingServiceTest {
         );
 
         createAuction(alphaListing, AuctionStatus.ACTIVE, Instant.parse("2026-04-21T10:00:00Z"), null);
-        createAuction(betaListing, AuctionStatus.CLOSED, Instant.parse("2026-04-22T10:00:00Z"), Instant.parse("2026-04-22T11:00:00Z"));
+        createAuction(betaListing, AuctionStatus.EXTENDED, Instant.parse("2026-04-22T10:00:00Z"), null);
 
         List<ListingResponse> sortedListings = listingService.getAllListings(
             PageRequest.of(0, 10, Sort.by(Sort.Direction.ASC, "title")),
@@ -285,7 +295,7 @@ class ListingServiceTest {
         );
         assertStatusAndReason(
             HttpStatus.CONFLICT,
-            "Listing is not active",
+            "Listing is not editable",
             () -> listingService.updateListing(inactiveListing.getId(), validUpdateRequest(), seller.getId())
         );
         assertStatusAndReason(
@@ -298,7 +308,7 @@ class ListingServiceTest {
             )
         );
 
-        Listing auctionListing = saveListing(
+        Listing extendedListing = saveListing(
             seller,
             "Limited Sneakers",
             "Deadstock pair",
@@ -307,12 +317,29 @@ class ListingServiceTest {
             ListingStatus.ACTIVE,
             "https://img.example/sneakers.jpg"
         );
-        createAuction(auctionListing, AuctionStatus.EXTENDED, Instant.parse("2026-04-23T10:00:00Z"), null);
+        createAuction(extendedListing, AuctionStatus.EXTENDED, Instant.parse("2026-04-23T10:00:00Z"), null);
+
+        assertStatusAndReason(
+            HttpStatus.CONFLICT,
+            "Listing cannot be modified in auction status EXTENDED",
+            () -> listingService.cancelListing(extendedListing.getId(), seller.getId())
+        );
+
+        Listing auctionListing = saveListing(
+            seller,
+            "Mirrorless Camera",
+            "Body only",
+            ListingCategory.ELECTRONICS,
+            "750.00",
+            ListingStatus.ACTIVE,
+            "https://img.example/camera.jpg"
+        );
+        createAuction(auctionListing, AuctionStatus.ACTIVE, Instant.parse("2026-04-23T10:00:00Z"), null);
 
         ListingDetailResponse cancelled = listingService.cancelListing(auctionListing.getId(), seller.getId());
 
         assertEquals(ListingStatus.CANCELLED, cancelled.status());
-        assertEquals(AuctionStatus.CLOSED, cancelled.auctionStatus());
+        assertEquals(AuctionStatus.CANCELLED, cancelled.auctionStatus());
         assertNotNull(cancelled.closedAt());
     }
 
@@ -338,16 +365,27 @@ class ListingServiceTest {
             ListingStatus.ACTIVE,
             "https://img.example/poster.jpg"
         );
-        Listing activeClosedAuction = saveListing(
+        Listing closedAuctionListing = saveListing(
             seller,
             "Drone",
             "Foldable drone",
             ListingCategory.ELECTRONICS,
             "800.00",
-            ListingStatus.ACTIVE,
+            ListingStatus.CLOSED,
             "https://img.example/drone.jpg"
         );
-        createAuction(activeClosedAuction, AuctionStatus.CLOSED, Instant.parse("2026-04-22T10:00:00Z"), Instant.parse("2026-04-22T10:30:00Z"));
+        createAuction(closedAuctionListing, AuctionStatus.CLOSED, Instant.parse("2026-04-22T10:00:00Z"), Instant.parse("2026-04-22T10:30:00Z"));
+
+        Listing extendedListing = saveListing(
+            seller,
+            "Vintage Watch",
+            "Still accepting late bids",
+            ListingCategory.FASHION,
+            "1200.00",
+            ListingStatus.EXTENDED,
+            "https://img.example/watch.jpg"
+        );
+        createAuction(extendedListing, AuctionStatus.EXTENDED, Instant.parse("2026-04-22T10:05:00Z"), null);
 
         assertStatusAndReason(
             HttpStatus.NOT_FOUND,
@@ -363,12 +401,13 @@ class ListingServiceTest {
         PublicSellerProfileResponse publicProfile = listingService.getPublicSellerProfile(seller.getId());
         ListingBidValidationResponse inactiveValidation = listingService.validateListingForBid(inactiveListing.getId());
         ListingBidValidationResponse noAuctionValidation = listingService.validateListingForBid(activeWithoutAuction.getId());
-        ListingBidValidationResponse closedAuctionValidation = listingService.validateListingForBid(activeClosedAuction.getId());
+        ListingBidValidationResponse closedAuctionValidation = listingService.validateListingForBid(closedAuctionListing.getId());
+        ListingBidValidationResponse extendedAuctionValidation = listingService.validateListingForBid(extendedListing.getId());
 
         assertEquals(seller.getId(), publicProfile.id());
         assertEquals(Role.SELLER, publicProfile.role());
-        assertEquals(2, publicProfile.activeListingCount());
-        assertEquals(0, publicProfile.liveAuctionCount());
+        assertEquals(1, publicProfile.activeListingCount());
+        assertEquals(1, publicProfile.liveAuctionCount());
         assertEquals(2, publicProfile.completedAuctionCount());
 
         assertFalse(inactiveValidation.active());
@@ -383,10 +422,15 @@ class ListingServiceTest {
         assertNull(noAuctionValidation.auctionStatus());
         assertNull(noAuctionValidation.endsAt());
 
-        assertTrue(closedAuctionValidation.active());
+        assertFalse(closedAuctionValidation.active());
         assertFalse(closedAuctionValidation.biddable());
-        assertEquals("Auction is not accepting bids", closedAuctionValidation.message());
+        assertEquals("Listing is no longer active", closedAuctionValidation.message());
         assertEquals(AuctionStatus.CLOSED, closedAuctionValidation.auctionStatus());
+
+        assertTrue(extendedAuctionValidation.active());
+        assertTrue(extendedAuctionValidation.biddable());
+        assertEquals("Listing is valid for bidding", extendedAuctionValidation.message());
+        assertEquals(AuctionStatus.EXTENDED, extendedAuctionValidation.auctionStatus());
     }
 
     @Test

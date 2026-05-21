@@ -147,17 +147,5 @@ services:
     ports:
       - "8086:8086"
 
-  notification-service:
-    build:
-      context: ../bidmart-notification-service
-    container_name: bidmart-notification-service
-    environment:
-      PORT: 8087
-      RABBITMQ_HOST: rabbitmq
-    depends_on:
-      - rabbitmq
-    ports:
-      - "8087:8087"
-
 volumes:
   bidmart-postgres-data:

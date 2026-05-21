@@ -63,6 +63,8 @@ public class WalletTransaction {
     public enum TransactionType {
         TOPUP,
         WITHDRAWAL,
+        HOLD,
+        RELEASE,
         PAYMENT,
         REFUND
     }
