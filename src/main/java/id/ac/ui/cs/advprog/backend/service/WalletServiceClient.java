@@ -1,5 +1,7 @@
 package id.ac.ui.cs.advprog.backend.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import id.ac.ui.cs.advprog.backend.dto.TopUpRequest;
 import id.ac.ui.cs.advprog.backend.dto.TransactionResponse;
 import id.ac.ui.cs.advprog.backend.dto.WalletResponse;
@@ -11,14 +13,17 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.server.ResponseStatusException;
 
 @Component
 public class WalletServiceClient {
 
     private final RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final boolean enabled;
     private final String baseUrl;
 
@@ -35,31 +40,43 @@ public class WalletServiceClient {
     }
 
     public WalletResponse getBalance() {
-        return restTemplate.exchange(
-            baseUrl + "/api/wallet/balance",
-            HttpMethod.GET,
-            new HttpEntity<>(headersWithAuthorization()),
-            WalletResponse.class
-        ).getBody();
+        try {
+            return restTemplate.exchange(
+                baseUrl + "/api/wallet/balance",
+                HttpMethod.GET,
+                new HttpEntity<>(headersWithAuthorization()),
+                WalletResponse.class
+            ).getBody();
+        } catch (HttpStatusCodeException exception) {
+            throw toResponseStatusException(exception);
+        }
     }
 
     public WalletResponse topUp(TopUpRequest request) {
-        return restTemplate.exchange(
-            baseUrl + "/api/wallet/topup",
-            HttpMethod.POST,
-            new HttpEntity<>(request, headersWithAuthorization()),
-            WalletResponse.class
-        ).getBody();
+        try {
+            return restTemplate.exchange(
+                baseUrl + "/api/wallet/topup",
+                HttpMethod.POST,
+                new HttpEntity<>(request, headersWithAuthorization()),
+                WalletResponse.class
+            ).getBody();
+        } catch (HttpStatusCodeException exception) {
+            throw toResponseStatusException(exception);
+        }
     }
 
     public List<TransactionResponse> getTransactions() {
-        TransactionResponse[] response = restTemplate.exchange(
-            baseUrl + "/api/wallet/transactions",
-            HttpMethod.GET,
-            new HttpEntity<>(headersWithAuthorization()),
-            TransactionResponse[].class
-        ).getBody();
-        return response == null ? List.of() : Arrays.asList(response);
+        try {
+            TransactionResponse[] response = restTemplate.exchange(
+                baseUrl + "/api/wallet/transactions",
+                HttpMethod.GET,
+                new HttpEntity<>(headersWithAuthorization()),
+                TransactionResponse[].class
+            ).getBody();
+            return response == null ? List.of() : Arrays.asList(response);
+        } catch (HttpStatusCodeException exception) {
+            throw toResponseStatusException(exception);
+        }
     }
 
     private HttpHeaders headersWithAuthorization() {
@@ -86,5 +103,29 @@ public class WalletServiceClient {
             return "";
         }
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
+    }
+
+    private ResponseStatusException toResponseStatusException(HttpStatusCodeException exception) {
+        return new ResponseStatusException(
+            exception.getStatusCode(),
+            extractMessage(exception),
+            exception
+        );
+    }
+
+    private String extractMessage(HttpStatusCodeException exception) {
+        String body = exception.getResponseBodyAsString();
+        if (body != null && !body.isBlank()) {
+            try {
+                JsonNode root = objectMapper.readTree(body);
+                JsonNode message = root.get("message");
+                if (message != null && !message.asText().isBlank()) {
+                    return message.asText();
+                }
+            } catch (Exception ignored) {
+                // Fall through to the HTTP status text.
+            }
+        }
+        return exception.getStatusText();
     }
 }
