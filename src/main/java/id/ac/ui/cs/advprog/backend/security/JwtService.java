@@ -4,7 +4,10 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import id.ac.ui.cs.advprog.backend.model.User;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Date;
 import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -13,6 +16,7 @@ import org.springframework.stereotype.Service;
 public class JwtService {
 
     private final SecretKey secretKey;
+    private final long expirationSeconds;
     public JwtService(
         @Value("${security.jwt.secret}") String secret,
         @Value("${security.jwt.expiration-seconds}") long expirationSeconds
@@ -21,6 +25,20 @@ public class JwtService {
             throw new IllegalArgumentException("JWT secret must be at least 32 characters");
         }
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.expirationSeconds = expirationSeconds;
+    }
+
+    public String generateToken(User user) {
+        Instant issuedAt = Instant.now();
+        Instant expiresAt = issuedAt.plusSeconds(expirationSeconds);
+        return Jwts.builder()
+            .setSubject(user.getId().toString())
+            .claim("email", user.getEmail())
+            .claim("role", "ROLE_" + user.getRole().name())
+            .setIssuedAt(Date.from(issuedAt))
+            .setExpiration(Date.from(expiresAt))
+            .signWith(secretKey)
+            .compact();
     }
 
     public String extractEmail(String token) {
