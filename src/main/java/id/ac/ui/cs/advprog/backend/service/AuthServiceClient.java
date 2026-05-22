@@ -8,12 +8,14 @@ import id.ac.ui.cs.advprog.backend.dto.RegisterRequest;
 import id.ac.ui.cs.advprog.backend.dto.RegisterResponse;
 import id.ac.ui.cs.advprog.backend.dto.UserSummary;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -22,15 +24,17 @@ import org.springframework.web.server.ResponseStatusException;
 @Component
 public class AuthServiceClient {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final boolean enabled;
     private final String baseUrl;
 
     public AuthServiceClient(
+        @Qualifier("serviceCommandRestTemplate") RestTemplate restTemplate,
         @Value("${microservices.auth.enabled:${AUTH_SERVICE_ENABLED:false}}") boolean enabled,
         @Value("${microservices.auth.base-url:${AUTH_SERVICE_BASE_URL:}}") String baseUrl
     ) {
+        this.restTemplate = restTemplate;
         this.enabled = enabled;
         this.baseUrl = trimTrailingSlash(baseUrl);
     }
@@ -45,6 +49,8 @@ public class AuthServiceClient {
             return restTemplate.postForObject(baseUrl + "/api/auth/register", request, RegisterResponse.class);
         } catch (HttpStatusCodeException exception) {
             throw toResponseStatusException(exception);
+        } catch (RestClientException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Auth service is unavailable", exception);
         }
     }
 
@@ -54,6 +60,8 @@ public class AuthServiceClient {
             return restTemplate.postForObject(baseUrl + "/api/auth/login", request, LoginResponse.class);
         } catch (HttpStatusCodeException exception) {
             throw toResponseStatusException(exception);
+        } catch (RestClientException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Auth service is unavailable", exception);
         }
     }
 
@@ -68,6 +76,8 @@ public class AuthServiceClient {
             ).getBody();
         } catch (HttpStatusCodeException exception) {
             throw toResponseStatusException(exception);
+        } catch (RestClientException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Auth service is unavailable", exception);
         }
     }
 

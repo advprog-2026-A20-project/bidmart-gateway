@@ -12,6 +12,7 @@ import id.ac.ui.cs.advprog.backend.dto.PublicSellerProfileResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -27,11 +28,15 @@ import org.springframework.web.server.ResponseStatusException;
 @Component
 public class ListingCommandServiceClient {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ListingQueryServiceProperties properties;
 
-    public ListingCommandServiceClient(ListingQueryServiceProperties properties) {
+    public ListingCommandServiceClient(
+        @Qualifier("serviceCommandRestTemplate") RestTemplate restTemplate,
+        ListingQueryServiceProperties properties
+    ) {
+        this.restTemplate = restTemplate;
         this.properties = properties;
     }
 

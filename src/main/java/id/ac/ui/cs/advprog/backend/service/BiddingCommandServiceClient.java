@@ -7,6 +7,7 @@ import id.ac.ui.cs.advprog.backend.dto.AuctionDetailResponse;
 import id.ac.ui.cs.advprog.backend.dto.BidPlaceRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -14,6 +15,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -22,15 +24,17 @@ import org.springframework.web.server.ResponseStatusException;
 @Component
 public class BiddingCommandServiceClient {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final boolean enabled;
     private final String baseUrl;
 
     public BiddingCommandServiceClient(
+        @Qualifier("serviceCommandRestTemplate") RestTemplate restTemplate,
         @Value("${microservices.bidding-command.enabled:${BIDDING_COMMAND_SERVICE_ENABLED:false}}") boolean enabled,
         @Value("${microservices.bidding-command.base-url:${BIDDING_COMMAND_SERVICE_BASE_URL:}}") String baseUrl
     ) {
+        this.restTemplate = restTemplate;
         this.enabled = enabled;
         this.baseUrl = trimTrailingSlash(baseUrl);
     }
@@ -50,6 +54,8 @@ public class BiddingCommandServiceClient {
             ).getBody();
         } catch (HttpStatusCodeException exception) {
             throw toResponseStatusException(exception);
+        } catch (RestClientException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Bidding command service is unavailable", exception);
         }
     }
 
@@ -64,6 +70,8 @@ public class BiddingCommandServiceClient {
             ).getBody();
         } catch (HttpStatusCodeException exception) {
             throw toResponseStatusException(exception);
+        } catch (RestClientException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Bidding command service is unavailable", exception);
         }
     }
 
@@ -78,6 +86,8 @@ public class BiddingCommandServiceClient {
             ).getBody();
         } catch (HttpStatusCodeException exception) {
             throw toResponseStatusException(exception);
+        } catch (RestClientException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Bidding command service is unavailable", exception);
         }
     }
 
@@ -92,6 +102,8 @@ public class BiddingCommandServiceClient {
             ).getBody();
         } catch (HttpStatusCodeException exception) {
             throw toResponseStatusException(exception);
+        } catch (RestClientException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Bidding command service is unavailable", exception);
         }
     }
 

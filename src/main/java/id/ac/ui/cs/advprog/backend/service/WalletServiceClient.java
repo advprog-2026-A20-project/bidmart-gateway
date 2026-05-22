@@ -10,27 +10,31 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 @Component
 public class WalletServiceClient {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final boolean enabled;
     private final String baseUrl;
 
     public WalletServiceClient(
+        @Qualifier("serviceCommandRestTemplate") RestTemplate restTemplate,
         @Value("${microservices.wallet.enabled:${WALLET_SERVICE_ENABLED:false}}") boolean enabled,
         @Value("${microservices.wallet.base-url:${WALLET_SERVICE_BASE_URL:}}") String baseUrl
     ) {
+        this.restTemplate = restTemplate;
         this.enabled = enabled;
         this.baseUrl = trimTrailingSlash(baseUrl);
     }
@@ -51,6 +55,8 @@ public class WalletServiceClient {
             return toWalletResponse(response);
         } catch (HttpStatusCodeException exception) {
             throw toResponseStatusException(exception);
+        } catch (RestClientException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Wallet service is unavailable", exception);
         }
     }
 
@@ -66,6 +72,8 @@ public class WalletServiceClient {
             return toWalletResponse(response);
         } catch (HttpStatusCodeException exception) {
             throw toResponseStatusException(exception);
+        } catch (RestClientException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Wallet service is unavailable", exception);
         }
     }
 
@@ -83,6 +91,8 @@ public class WalletServiceClient {
                 .toList();
         } catch (HttpStatusCodeException exception) {
             throw toResponseStatusException(exception);
+        } catch (RestClientException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Wallet service is unavailable", exception);
         }
     }
 
