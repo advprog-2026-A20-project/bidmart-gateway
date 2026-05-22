@@ -4,9 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import id.ac.ui.cs.advprog.backend.dto.LoginRequest;
 import id.ac.ui.cs.advprog.backend.dto.LoginResponse;
+import id.ac.ui.cs.advprog.backend.dto.MessageResponse;
+import id.ac.ui.cs.advprog.backend.dto.ForgotPasswordRequest;
+import id.ac.ui.cs.advprog.backend.dto.ResetPasswordRequest;
 import id.ac.ui.cs.advprog.backend.dto.RegisterRequest;
 import id.ac.ui.cs.advprog.backend.dto.RegisterResponse;
 import id.ac.ui.cs.advprog.backend.dto.UserSummary;
+import id.ac.ui.cs.advprog.backend.dto.VerifyResetOtpRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -66,6 +70,33 @@ public class AuthServiceClient {
                 new HttpEntity<>(headersWithAuthorization()),
                 UserSummary.class
             ).getBody();
+        } catch (HttpStatusCodeException exception) {
+            throw toResponseStatusException(exception);
+        }
+    }
+
+    public MessageResponse forgotPassword(ForgotPasswordRequest request) {
+        try {
+            ensureConfigured();
+            return restTemplate.postForObject(baseUrl + "/api/auth/forgot-password", request, MessageResponse.class);
+        } catch (HttpStatusCodeException exception) {
+            throw toResponseStatusException(exception);
+        }
+    }
+
+    public MessageResponse verifyResetOtp(VerifyResetOtpRequest request) {
+        try {
+            ensureConfigured();
+            return restTemplate.postForObject(baseUrl + "/api/auth/verify-reset-otp", request, MessageResponse.class);
+        } catch (HttpStatusCodeException exception) {
+            throw toResponseStatusException(exception);
+        }
+    }
+
+    public MessageResponse resetPassword(ResetPasswordRequest request) {
+        try {
+            ensureConfigured();
+            return restTemplate.postForObject(baseUrl + "/api/auth/reset-password", request, MessageResponse.class);
         } catch (HttpStatusCodeException exception) {
             throw toResponseStatusException(exception);
         }

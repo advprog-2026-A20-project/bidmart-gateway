@@ -2,9 +2,13 @@ package id.ac.ui.cs.advprog.backend.controller;
 
 import id.ac.ui.cs.advprog.backend.dto.LoginRequest;
 import id.ac.ui.cs.advprog.backend.dto.LoginResponse;
+import id.ac.ui.cs.advprog.backend.dto.MessageResponse;
+import id.ac.ui.cs.advprog.backend.dto.ForgotPasswordRequest;
+import id.ac.ui.cs.advprog.backend.dto.ResetPasswordRequest;
 import id.ac.ui.cs.advprog.backend.dto.RegisterRequest;
 import id.ac.ui.cs.advprog.backend.dto.RegisterResponse;
 import id.ac.ui.cs.advprog.backend.dto.UserSummary;
+import id.ac.ui.cs.advprog.backend.dto.VerifyResetOtpRequest;
 import id.ac.ui.cs.advprog.backend.security.AuthenticatedUser;
 import id.ac.ui.cs.advprog.backend.service.AuthServiceClient;
 import jakarta.validation.Valid;
@@ -38,6 +42,24 @@ public class AuthController {
     @PreAuthorize("permitAll()")
     public LoginResponse login(@Valid @RequestBody LoginRequest request) {
         return authServiceClient.login(request);
+    }
+
+    @PostMapping("/forgot-password")
+    @PreAuthorize("permitAll()")
+    public MessageResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        return authServiceClient.forgotPassword(request);
+    }
+
+    @PostMapping("/verify-reset-otp")
+    @PreAuthorize("permitAll()")
+    public MessageResponse verifyResetOtp(@Valid @RequestBody VerifyResetOtpRequest request) {
+        return authServiceClient.verifyResetOtp(request);
+    }
+
+    @PostMapping("/reset-password")
+    @PreAuthorize("permitAll()")
+    public MessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        return authServiceClient.resetPassword(request);
     }
 
     @GetMapping("/me")
