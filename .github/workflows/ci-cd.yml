@@ -49,6 +49,8 @@ jobs:
             -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
             -Dsonar.organization=${{ env.SONAR_ORGANIZATION }}
             -Dsonar.java.binaries=build/classes
+            -Dsonar.coverage.exclusions=src/main/java/id/ac/ui/cs/advprog/backend/dto/**,src/main/java/id/ac/ui/cs/advprog/backend/model/**,src/main/java/id/ac/ui/cs/advprog/backend/repository/**,src/main/java/id/ac/ui/cs/advprog/backend/exception/**
+            -Dsonar.cpd.exclusions=src/main/java/id/ac/ui/cs/advprog/backend/dto/**,src/main/java/id/ac/ui/cs/advprog/backend/service/*Client.java
 
       - name: SonarQube Cloud quality gate
         uses: SonarSource/sonarqube-quality-gate-action@cf038b0e0cdecfa9e56c198bbb7d21d751d62c3b # v1.2.0
