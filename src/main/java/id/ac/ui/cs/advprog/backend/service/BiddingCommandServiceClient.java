@@ -22,6 +22,8 @@ import org.springframework.web.server.ResponseStatusException;
 @Component
 public class BiddingCommandServiceClient {
 
+    private static final String API_AUCTIONS_PATH = "/api/auctions/";
+
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final boolean enabled;
@@ -57,7 +59,7 @@ public class BiddingCommandServiceClient {
         try {
             ensureConfigured();
             return restTemplate.exchange(
-                baseUrl + "/api/auctions/" + auctionId + "/activate",
+                baseUrl + API_AUCTIONS_PATH + auctionId + "/activate",
                 HttpMethod.POST,
                 new HttpEntity<>(headersWithAuthorization()),
                 AuctionDetailResponse.class
@@ -71,7 +73,7 @@ public class BiddingCommandServiceClient {
         try {
             ensureConfigured();
             return restTemplate.exchange(
-                baseUrl + "/api/auctions/" + auctionId + "/bids",
+                baseUrl + API_AUCTIONS_PATH + auctionId + "/bids",
                 HttpMethod.POST,
                 new HttpEntity<>(request, headersWithAuthorization()),
                 AuctionDetailResponse.class
@@ -85,7 +87,7 @@ public class BiddingCommandServiceClient {
         try {
             ensureConfigured();
             return restTemplate.exchange(
-                baseUrl + "/api/auctions/" + auctionId + "/close",
+                baseUrl + API_AUCTIONS_PATH + auctionId + "/close",
                 HttpMethod.POST,
                 new HttpEntity<>(headersWithAuthorization()),
                 AuctionDetailResponse.class
