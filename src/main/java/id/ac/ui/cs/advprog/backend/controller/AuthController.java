@@ -1,10 +1,20 @@
 package id.ac.ui.cs.advprog.backend.controller;
 
-import id.ac.ui.cs.advprog.backend.service.HttpProxyService;
-import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
+import id.ac.ui.cs.advprog.backend.dto.LoginRequest;
+import id.ac.ui.cs.advprog.backend.dto.LoginResponse;
+import id.ac.ui.cs.advprog.backend.dto.MessageResponse;
+import id.ac.ui.cs.advprog.backend.dto.ForgotPasswordRequest;
+import id.ac.ui.cs.advprog.backend.dto.ResetPasswordRequest;
+import id.ac.ui.cs.advprog.backend.dto.RegisterRequest;
+import id.ac.ui.cs.advprog.backend.dto.RegisterResponse;
+import id.ac.ui.cs.advprog.backend.dto.UserSummary;
+import id.ac.ui.cs.advprog.backend.dto.VerifyResetOtpRequest;
+import id.ac.ui.cs.advprog.backend.security.AuthenticatedUser;
+import id.ac.ui.cs.advprog.backend.service.AuthServiceClient;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,35 +25,46 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private final HttpProxyService proxyService;
-    private final String authServiceBaseUrl;
+    private final AuthServiceClient authServiceClient;
 
-    public AuthController(
-        HttpProxyService proxyService,
-        @Value("${AUTH_SERVICE_BASE_URL:http://localhost:8081}") String authServiceBaseUrl
-    ) {
-        this.proxyService = proxyService;
-        this.authServiceBaseUrl = authServiceBaseUrl;
+    public AuthController(AuthServiceClient authServiceClient) {
+        this.authServiceClient = authServiceClient;
     }
 
     @PostMapping("/register")
-    public ResponseEntity<String> register(
-        HttpServletRequest request,
-        @RequestBody(required = false) String body
-    ) {
-        return proxyService.forward(HttpMethod.POST, authServiceBaseUrl, "/auth/register", request, body);
+    @PreAuthorize("permitAll()")
+    @org.springframework.web.bind.annotation.ResponseStatus(HttpStatus.CREATED)
+    public RegisterResponse register(@Valid @RequestBody RegisterRequest request) {
+        return authServiceClient.register(request);
     }
 
     @PostMapping("/login")
-    public ResponseEntity<String> login(
-        HttpServletRequest request,
-        @RequestBody(required = false) String body
-    ) {
-        return proxyService.forward(HttpMethod.POST, authServiceBaseUrl, "/auth/login", request, body);
+    @PreAuthorize("permitAll()")
+    public LoginResponse login(@Valid @RequestBody LoginRequest request) {
+        return authServiceClient.login(request);
+    }
+
+    @PostMapping("/forgot-password")
+    @PreAuthorize("permitAll()")
+    public MessageResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        return authServiceClient.forgotPassword(request);
+    }
+
+    @PostMapping("/verify-reset-otp")
+    @PreAuthorize("permitAll()")
+    public MessageResponse verifyResetOtp(@Valid @RequestBody VerifyResetOtpRequest request) {
+        return authServiceClient.verifyResetOtp(request);
+    }
+
+    @PostMapping("/reset-password")
+    @PreAuthorize("permitAll()")
+    public MessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        return authServiceClient.resetPassword(request);
     }
 
     @GetMapping("/me")
-    public ResponseEntity<String> me(HttpServletRequest request) {
-        return proxyService.forward(HttpMethod.GET, authServiceBaseUrl, "/auth/me", request, null);
+    @PreAuthorize("isAuthenticated()")
+    public UserSummary me(@AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
+        return authServiceClient.me();
     }
 }

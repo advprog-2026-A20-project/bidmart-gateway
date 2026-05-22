@@ -31,12 +31,4 @@ public class ExternalServiceClientConfig {
         requestFactory.setReadTimeout(properties.getReadTimeoutMs());
         return new RestTemplate(requestFactory);
     }
-
-    @Bean
-    public RestTemplate proxyRestTemplate() {
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(1000);
-        requestFactory.setReadTimeout(3000);
-        return new RestTemplate(requestFactory);
-    }
 }
