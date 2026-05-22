@@ -20,7 +20,8 @@ Gateway berfungsi sebagai entrypoint API dan router antar microservice.
 - auth ownership -> `bidmart-auth-service`
 - wallet ownership -> `bidmart-wallet-service`
 - auction/bid command ownership -> `bidmart-bidding-command-service`
-- listing/auction query ownership -> `bidmart-listing-query-service`, `bidmart-auction-query-service`
+- listing ownership and listing read model -> `bidmart-listing-query-service`
+- auction query ownership -> `bidmart-auction-query-service`
 
 ## Status Cleanup
 

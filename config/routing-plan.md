@@ -9,8 +9,8 @@
 | `/api/auctions/**` (GET) | `bidmart-auction-query-service` | aktif |
 | `/api/auctions/**` (POST command) | `bidmart-bidding-command-service` | aktif |
 | `/api/listings/**` (GET) | `bidmart-listing-query-service` | aktif |
-| `/api/listings/**` (POST/PUT/DELETE) | gateway listing command legacy | aktif (transisi) |
-| `/api/users/**` | gateway public user endpoint | aktif |
+| `/api/listings/**` (POST/PUT/DELETE) | `bidmart-listing-query-service` | aktif |
+| `/api/users/**` | `bidmart-listing-query-service` public profile endpoint | aktif |
 
 ## Env yang Dipakai
 
@@ -19,4 +19,3 @@
 - `BIDDING_COMMAND_SERVICE_BASE_URL`
 - `AUCTION_QUERY_SERVICE_BASE_URL`
 - `LISTING_QUERY_SERVICE_BASE_URL`
-- `GATEWAY_LEGACY_COMPAT_ENABLED`

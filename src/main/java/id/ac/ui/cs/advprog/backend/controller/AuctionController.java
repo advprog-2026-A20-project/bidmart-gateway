@@ -1,18 +1,19 @@
 package id.ac.ui.cs.advprog.backend.controller;
 
+import id.ac.ui.cs.advprog.backend.dto.AuctionCreateRequest;
 import id.ac.ui.cs.advprog.backend.dto.AuctionDetailResponse;
 import id.ac.ui.cs.advprog.backend.dto.AuctionSummaryResponse;
+import id.ac.ui.cs.advprog.backend.dto.BidPlaceRequest;
 import id.ac.ui.cs.advprog.backend.dto.BidResponse;
+import id.ac.ui.cs.advprog.backend.security.AuthenticatedUser;
 import id.ac.ui.cs.advprog.backend.service.AuctionReadGateway;
-import id.ac.ui.cs.advprog.backend.service.HttpProxyService;
-import jakarta.servlet.http.HttpServletRequest;
+import id.ac.ui.cs.advprog.backend.service.BiddingCommandServiceClient;
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,33 +27,24 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuctionController {
 
     private final AuctionReadGateway auctionReadGateway;
-    private final HttpProxyService proxyService;
-    private final String biddingCommandServiceBaseUrl;
+    private final BiddingCommandServiceClient biddingCommandServiceClient;
 
     public AuctionController(
         AuctionReadGateway auctionReadGateway,
-        HttpProxyService proxyService,
-        @Value("${BIDDING_COMMAND_SERVICE_BASE_URL:http://localhost:8084}") String biddingCommandServiceBaseUrl
+        BiddingCommandServiceClient biddingCommandServiceClient
     ) {
         this.auctionReadGateway = auctionReadGateway;
-        this.proxyService = proxyService;
-        this.biddingCommandServiceBaseUrl = biddingCommandServiceBaseUrl;
+        this.biddingCommandServiceClient = biddingCommandServiceClient;
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('SELLER')")
-    public ResponseEntity<String> createAuction(
-        @RequestBody String body,
-        HttpServletRequest httpServletRequest
+    public AuctionDetailResponse createAuction(
+        @Valid @RequestBody AuctionCreateRequest request,
+        @AuthenticationPrincipal AuthenticatedUser authenticatedUser
     ) {
-        return proxyService.forward(
-            HttpMethod.POST,
-            biddingCommandServiceBaseUrl,
-            "/api/auctions",
-            httpServletRequest,
-            body
-        );
+        return biddingCommandServiceClient.createAuction(request);
     }
 
     @GetMapping
@@ -75,48 +67,30 @@ public class AuctionController {
 
     @PostMapping("/{auctionId}/activate")
     @PreAuthorize("hasRole('SELLER')")
-    public ResponseEntity<String> activateAuction(
+    public AuctionDetailResponse activateAuction(
         @PathVariable UUID auctionId,
-        HttpServletRequest httpServletRequest
+        @AuthenticationPrincipal AuthenticatedUser authenticatedUser
     ) {
-        return proxyService.forward(
-            HttpMethod.POST,
-            biddingCommandServiceBaseUrl,
-            "/api/auctions/" + auctionId + "/activate",
-            httpServletRequest,
-            null
-        );
+        return biddingCommandServiceClient.activateAuction(auctionId);
     }
 
     @PostMapping("/{auctionId}/bids")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('BUYER')")
-    public ResponseEntity<String> placeBid(
+    public AuctionDetailResponse placeBid(
         @PathVariable UUID auctionId,
-        @RequestBody String body,
-        HttpServletRequest httpServletRequest
+        @Valid @RequestBody BidPlaceRequest request,
+        @AuthenticationPrincipal AuthenticatedUser authenticatedUser
     ) {
-        return proxyService.forward(
-            HttpMethod.POST,
-            biddingCommandServiceBaseUrl,
-            "/api/auctions/" + auctionId + "/bids",
-            httpServletRequest,
-            body
-        );
+        return biddingCommandServiceClient.placeBid(auctionId, request);
     }
 
     @PostMapping("/{auctionId}/close")
     @PreAuthorize("hasRole('SELLER')")
-    public ResponseEntity<String> closeAuction(
+    public AuctionDetailResponse closeAuction(
         @PathVariable UUID auctionId,
-        HttpServletRequest httpServletRequest
+        @AuthenticationPrincipal AuthenticatedUser authenticatedUser
     ) {
-        return proxyService.forward(
-            HttpMethod.POST,
-            biddingCommandServiceBaseUrl,
-            "/api/auctions/" + auctionId + "/close",
-            httpServletRequest,
-            null
-        );
+        return biddingCommandServiceClient.closeAuction(auctionId);
     }
 }

@@ -1,0 +1,151 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: bidmart-postgres
+    environment:
+      POSTGRES_DB: bidmart
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - bidmart-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d bidmart"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: bidmart-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  gateway:
+    build:
+      context: ../bidmart-gateway
+    container_name: bidmart-gateway
+    environment:
+      PORT: 8080
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/bidmart
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      JWT_SECRET: change-this-in-real-env
+      AUCTION_QUERY_SERVICE_ENABLED: "true"
+      AUCTION_QUERY_SERVICE_BASE_URL: http://auction-query-service:8081
+      AUCTION_QUERY_SERVICE_ROLLOUT_MODE: FULL
+      LISTING_QUERY_SERVICE_ENABLED: "true"
+      LISTING_QUERY_SERVICE_BASE_URL: http://listing-query-service:8082
+      LISTING_QUERY_SERVICE_ROLLOUT_MODE: FULL
+      LISTING_COMMAND_SERVICE_BASE_URL: http://listing-command-service:8083
+      AUCTION_COMMAND_SERVICE_BASE_URL: http://auction-command-service:8084
+      WALLET_SERVICE_BASE_URL: http://wallet-service:8085
+      AUTH_SERVICE_BASE_URL: http://auth-service:8086
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+  auction-query-service:
+    build:
+      context: ../bidmart-auction-query-service
+    container_name: bidmart-auction-query-service
+    environment:
+      PORT: 8081
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/bidmart
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+
+  listing-query-service:
+    build:
+      context: ../bidmart-listing-query-service
+    container_name: bidmart-listing-query-service
+    environment:
+      PORT: 8082
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/bidmart
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+
+  listing-command-service:
+    build:
+      context: ../bidmart-listing-command-service
+    container_name: bidmart-listing-command-service
+    environment:
+      PORT: 8083
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/bidmart
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      RABBITMQ_HOST: rabbitmq
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+
+  auction-command-service:
+    build:
+      context: ../bidmart-auction-command-service
+    container_name: bidmart-auction-command-service
+    environment:
+      PORT: 8084
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/bidmart
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      RABBITMQ_HOST: rabbitmq
+      WALLET_SERVICE_BASE_URL: http://wallet-service:8085
+      LISTING_COMMAND_SERVICE_BASE_URL: http://listing-command-service:8083
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8084:8084"
+
+  wallet-service:
+    build:
+      context: ../bidmart-wallet-service
+    container_name: bidmart-wallet-service
+    environment:
+      PORT: 8085
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/bidmart
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8085:8085"
+
+  auth-service:
+    build:
+      context: ../bidmart-auth-service
+    container_name: bidmart-auth-service
+    environment:
+      PORT: 8086
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/bidmart
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      JWT_SECRET: change-this-in-real-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8086:8086"
+
+volumes:
+  bidmart-postgres-data:

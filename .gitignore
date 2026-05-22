@@ -40,6 +40,7 @@ out/
 .env
 backend/.env
 .env.*
+!.env.example
 
 # Internal migration notes (not for shared branch)
 docs/microservices-migration.md

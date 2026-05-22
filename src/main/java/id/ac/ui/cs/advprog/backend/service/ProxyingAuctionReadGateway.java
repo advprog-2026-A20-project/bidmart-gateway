@@ -15,6 +15,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -33,53 +35,60 @@ public class ProxyingAuctionReadGateway implements AuctionReadGateway {
 
     @Override
     public List<AuctionSummaryResponse> listAuctions() {
-        return invokeRemoteList("/api/auctions", AuctionSummaryResponse[].class);
+        return getList(currentRequestPath("/api/auctions"), AuctionSummaryResponse[].class);
     }
 
     @Override
     public AuctionDetailResponse getAuctionDetail(UUID auctionId) {
-        return invokeRemoteObject("/api/auctions/" + auctionId, AuctionDetailResponse.class);
+        return getObject("/api/auctions/" + auctionId, AuctionDetailResponse.class);
     }
 
     @Override
     public List<BidResponse> getBidHistory(UUID auctionId) {
-        return invokeRemoteList("/api/auctions/" + auctionId + "/bids", BidResponse[].class);
+        return getList("/api/auctions/" + auctionId + "/bids", BidResponse[].class);
     }
 
-    private <T> T invokeRemoteObject(String path, Class<T> responseType) {
+    private <T> T getObject(String path, Class<T> responseType) {
         try {
             ResponseEntity<T> response = restTemplate.getForEntity(buildUri(path), responseType);
-            if (response.getBody() == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Auction query service returned empty body");
+            T body = response.getBody();
+            if (body == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Auction query service returned empty response");
             }
-            return response.getBody();
+            return body;
         } catch (HttpStatusCodeException exception) {
-            throw new ResponseStatusException(exception.getStatusCode(), exception.getResponseBodyAsString(), exception);
+            throw new ResponseStatusException(exception.getStatusCode(), exception.getStatusText(), exception);
         } catch (RestClientException exception) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Auction query service unavailable", exception);
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Auction query service is unavailable", exception);
         }
     }
 
-    private <T> List<T> invokeRemoteList(String path, Class<T[]> responseType) {
+    private <T> List<T> getList(String path, Class<T[]> responseType) {
         try {
             ResponseEntity<T[]> response = restTemplate.getForEntity(buildUri(path), responseType);
             T[] body = response.getBody();
             return body == null ? List.of() : Arrays.asList(body);
         } catch (HttpStatusCodeException exception) {
-            throw new ResponseStatusException(exception.getStatusCode(), exception.getResponseBodyAsString(), exception);
+            throw new ResponseStatusException(exception.getStatusCode(), exception.getStatusText(), exception);
         } catch (RestClientException exception) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Auction query service unavailable", exception);
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Auction query service is unavailable", exception);
         }
     }
 
     private URI buildUri(String path) {
-        String baseUrl = properties.getBaseUrl() == null ? "" : properties.getBaseUrl().trim();
-        if (baseUrl.isBlank()) {
+        String baseUrl = properties.getBaseUrl();
+        if (baseUrl == null || baseUrl.isBlank()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Auction query service base URL is not configured");
         }
-        String normalizedBaseUrl = baseUrl.endsWith("/")
-            ? baseUrl.substring(0, baseUrl.length() - 1)
-            : baseUrl;
+        String normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         return URI.create(normalizedBaseUrl + path);
+    }
+
+    private String currentRequestPath(String defaultPath) {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs) {
+            String query = attrs.getRequest().getQueryString();
+            return query == null || query.isBlank() ? defaultPath : defaultPath + "?" + query;
+        }
+        return defaultPath;
     }
 }
