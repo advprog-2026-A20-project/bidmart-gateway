@@ -22,8 +22,6 @@ import org.springframework.web.server.ResponseStatusException;
 @Component
 public class WalletServiceClient {
 
-    private static final String WALLETS_PATH = "/wallets/";
-
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final boolean enabled;
@@ -45,7 +43,7 @@ public class WalletServiceClient {
         try {
             ensureConfigured();
             WalletBalanceServiceResponse response = restTemplate.exchange(
-                baseUrl + WALLETS_PATH + userId + "/balance",
+                baseUrl + "/wallets/" + userId + "/balance",
                 HttpMethod.GET,
                 HttpEntity.EMPTY,
                 WalletBalanceServiceResponse.class
@@ -60,7 +58,7 @@ public class WalletServiceClient {
         try {
             ensureConfigured();
             WalletBalanceServiceResponse response = restTemplate.exchange(
-                baseUrl + WALLETS_PATH + userId + "/top-up",
+                baseUrl + "/wallets/" + userId + "/top-up",
                 HttpMethod.POST,
                 new HttpEntity<>(request),
                 WalletBalanceServiceResponse.class
@@ -75,7 +73,7 @@ public class WalletServiceClient {
         try {
             ensureConfigured();
             WalletTransactionServiceResponse[] response = restTemplate.exchange(
-                baseUrl + WALLETS_PATH + userId + "/transactions",
+                baseUrl + "/wallets/" + userId + "/transactions",
                 HttpMethod.GET,
                 HttpEntity.EMPTY,
                 WalletTransactionServiceResponse[].class

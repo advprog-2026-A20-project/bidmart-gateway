@@ -27,8 +27,6 @@ import org.springframework.web.server.ResponseStatusException;
 @Component
 public class ListingCommandServiceClient {
 
-    private static final String API_LISTINGS_PATH = "/api/listings/";
-
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ListingQueryServiceProperties properties;
@@ -55,7 +53,7 @@ public class ListingCommandServiceClient {
     public ListingDetailResponse update(UUID listingId, ListingUpdateRequest request) {
         try {
             return restTemplate.exchange(
-                buildUri(API_LISTINGS_PATH + listingId),
+                buildUri("/api/listings/" + listingId),
                 HttpMethod.PUT,
                 new HttpEntity<>(request, headersWithAuthorization()),
                 ListingDetailResponse.class
@@ -70,7 +68,7 @@ public class ListingCommandServiceClient {
     public ListingDetailResponse cancel(UUID listingId) {
         try {
             return restTemplate.exchange(
-                buildUri(API_LISTINGS_PATH + listingId),
+                buildUri("/api/listings/" + listingId),
                 HttpMethod.DELETE,
                 new HttpEntity<>(headersWithAuthorization()),
                 ListingDetailResponse.class
@@ -85,7 +83,7 @@ public class ListingCommandServiceClient {
     public ListingBidValidationResponse validateForBid(UUID listingId) {
         try {
             return restTemplate.getForObject(
-                buildUri(API_LISTINGS_PATH + listingId + "/validation"),
+                buildUri("/api/listings/" + listingId + "/validation"),
                 ListingBidValidationResponse.class
             );
         } catch (HttpStatusCodeException exception) {
